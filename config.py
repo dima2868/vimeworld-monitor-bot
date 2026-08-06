@@ -35,5 +35,13 @@ CREATOR = {
 # Check interval in seconds for background monitoring (2 seconds)
 CHECK_INTERVAL = 2
 
-# Database path
-DB_PATH = os.getenv("DB_PATH", "bot_data.db")
+# Persistent database path (supports Railway Volume or data/ directory)
+raw_db_path = os.getenv("DB_PATH")
+if not raw_db_path:
+    volume_path = os.getenv("RAILWAY_VOLUME_MOUNT_PATH")
+    if volume_path:
+        raw_db_path = os.path.join(volume_path, "bot_data.db")
+    else:
+        raw_db_path = os.path.join("data", "bot_data.db")
+
+DB_PATH = raw_db_path

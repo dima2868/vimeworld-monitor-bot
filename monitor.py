@@ -19,6 +19,7 @@ def get_now_msk_str() -> str:
 async def start_monitoring(bot: Bot):
     """
     Background worker loop that checks YouTuber online status periodically (every 2s).
+    Preserves existing states in SQLite across bot restarts to avoid resetting notifications.
     Triggers notifications on state transitions:
     - Entering Solo Leveling (SOLOLEVELING)
     - Moving to Lobby (LOBBY)
@@ -26,14 +27,19 @@ async def start_monitoring(bot: Bot):
     """
     logger.info(f"Starting background monitoring loop (check interval: {CHECK_INTERVAL}s)...")
     
-    # Initial status population without sending notifications on startup
+    # Initialize status ONLY if player state does not exist in DB yet
     for nick in YOUTUBERS.keys():
         try:
-            info = await checker.fetch_player_status(nick)
-            await db.update_player_last_state(nick, info['state'], info['is_online'])
-            logger.info(f"Initialized status for {nick}: State={info['state']} ({info['status_display']})")
+            state_exists = await db.has_player_state(nick)
+            if not state_exists:
+                info = await checker.fetch_player_status(nick)
+                await db.update_player_last_state(nick, info['state'], info['is_online'])
+                logger.info(f"Initialized new player state for {nick}: State={info['state']}")
+            else:
+                saved_state = await db.get_player_last_state(nick)
+                logger.info(f"Preserved existing player state across restart for {nick}: State={saved_state}")
         except Exception as e:
-            logger.error(f"Error during initial status check for {nick}: {e}")
+            logger.error(f"Error during status check on startup for {nick}: {e}")
 
     while True:
         try:

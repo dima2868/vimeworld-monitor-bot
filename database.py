@@ -1,3 +1,4 @@
+import os
 import aiosqlite
 import logging
 from config import DB_PATH
@@ -5,7 +6,11 @@ from config import DB_PATH
 logger = logging.getLogger(__name__)
 
 async def init_db():
-    """Initializes SQLite database tables."""
+    """Initializes SQLite database tables and ensures target directory exists."""
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+        
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -36,7 +41,7 @@ async def init_db():
             pass
             
         await db.commit()
-    logger.info("Database initialized successfully.")
+    logger.info(f"Database initialized successfully at: {DB_PATH}")
 
 async def add_user(user_id: int):
     """Registers a new user if not exists."""
@@ -94,6 +99,16 @@ async def get_subscribers_for_player(target_nick: str) -> list:
         ) as cursor:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
+
+async def has_player_state(target_nick: str) -> bool:
+    """Checks if player state exists in database."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT 1 FROM player_status WHERE target_nick = ?",
+            (target_nick,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row is not None
 
 async def get_player_last_state(target_nick: str) -> str:
     """Gets the last recorded state of a player ('OFFLINE', 'LOBBY', 'SOLOLEVELING', 'OTHER_GAME')."""
