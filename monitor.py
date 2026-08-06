@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from aiogram import Bot
 from aiogram.exceptions import TelegramRetryAfter, TelegramAPIError
 from config import YOUTUBERS, CHECK_INTERVAL
@@ -8,6 +8,13 @@ import checker
 import database as db
 
 logger = logging.getLogger(__name__)
+
+# Moscow Timezone (UTC+3)
+MSK_TZ = timezone(timedelta(hours=3))
+
+def get_now_msk_str() -> str:
+    """Returns current Moscow time formatted as HH:MM:SS."""
+    return datetime.now(MSK_TZ).strftime("%H:%M:%S")
 
 async def start_monitoring(bot: Bot):
     """
@@ -43,7 +50,7 @@ async def start_monitoring(bot: Bot):
                     
                     subscribers = await db.get_subscribers_for_player(nick)
                     if subscribers:
-                        now_str = datetime.now().strftime("%H:%M:%S")
+                        now_str = get_now_msk_str()
                         alert_msg = None
                         
                         # 1. Entered Solo Leveling
@@ -51,7 +58,7 @@ async def start_monitoring(bot: Bot):
                             alert_msg = (
                                 f"🚨 <b>{data['icon']} {data['name'].upper()} ЗАШЁЛ НА SOLO LEVELING!</b> 🚨\n\n"
                                 f"🎮 <b>{data['name']}</b> (<code>{nick}</code>) зашёл в режим <b>Solo Leveling</b> на VimeWorld!\n"
-                                f"⏰ Время: <b>{now_str}</b>\n\n"
+                                f"⏰ Время (МСК): <b>{now_str}</b>\n\n"
                                 f"🔗 <a href='{data['url']}'>Перейти на профиль VimeWorld</a>"
                             )
                         # 2. Left server (Offline)
@@ -59,21 +66,21 @@ async def start_monitoring(bot: Bot):
                             alert_msg = (
                                 f"🔴 <b>{data['icon']} {data['name'].upper()} ВЫШЕЛ С СЕРВЕРА</b>\n\n"
                                 f"🎮 <b>{data['name']}</b> (<code>{nick}</code>) вышел с сервера VimeWorld.\n"
-                                f"⏰ Время выхода: <b>{now_str}</b>"
+                                f"⏰ Время выхода (МСК): <b>{now_str}</b>"
                             )
                         # 3. Left Solo Leveling / Returned to Lobby
                         elif prev_state == "SOLOLEVELING" and current_state in ("LOBBY", "OTHER_GAME"):
                             alert_msg = (
                                 f"🟡 <b>{data['icon']} {data['name'].upper()} ВЫШЕЛ С SOLO LEVELING В ЛОББИ</b>\n\n"
                                 f"🎮 <b>{data['name']}</b> (<code>{nick}</code>) вышел с Solo Leveling в лобби (или сменил режим).\n"
-                                f"⏰ Время: <b>{now_str}</b>"
+                                f"⏰ Время (МСК): <b>{now_str}</b>"
                             )
                         # 4. Connected to server (In Lobby)
                         elif prev_state == "OFFLINE" and current_state in ("LOBBY", "OTHER_GAME"):
                             alert_msg = (
                                 f"🟡 <b>{data['icon']} {data['name'].upper()} ЗАШЁЛ НА СЕРВЕР (В ЛОББИ)</b>\n\n"
                                 f"🎮 <b>{data['name']}</b> (<code>{nick}</code>) зашёл на VimeWorld (сейчас в лобби).\n"
-                                f"⏰ Время входа: <b>{now_str}</b>"
+                                f"⏰ Время входа (МСК): <b>{now_str}</b>"
                             )
 
                         if alert_msg:

@@ -1,8 +1,8 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from aiogram import Router, F
-from aiogram.filters import Command, or_f
+from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramRetryAfter, TelegramAPIError
 from config import YOUTUBERS, CREATOR, ADMIN_IDS
@@ -11,6 +11,13 @@ import database as db
 import keyboards
 
 logger = logging.getLogger(__name__)
+
+# Moscow Timezone (UTC+3)
+MSK_TZ = timezone(timedelta(hours=3))
+
+def get_now_msk_str() -> str:
+    """Returns current Moscow time formatted as HH:MM:SS."""
+    return datetime.now(MSK_TZ).strftime("%H:%M:%S")
 
 router = Router()
 
@@ -52,7 +59,7 @@ async def generate_monitoring_text(user_id: int) -> str:
     return text
 
 async def generate_admin_stats_text() -> str:
-    """Generates admin statistics text."""
+    """Generates admin statistics text in MSK timezone."""
     total_users = await db.get_total_users_count()
     active_subs = await db.get_active_subscribers_count()
     breakdown = await db.get_subscriptions_breakdown()
@@ -60,7 +67,7 @@ async def generate_admin_stats_text() -> str:
     lol_count = breakdown.get("MrLalalashkaXXL", 0)
     fix_count = breakdown.get("F1xPlay_", 0)
     
-    now_str = datetime.now().strftime("%H:%M:%S")
+    now_str = get_now_msk_str()
     
     text = (
         "👑 <b>Панель Администратора</b>\n\n"
@@ -71,7 +78,7 @@ async def generate_admin_stats_text() -> str:
         f"• 🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>): <b>{lol_count}</b> чел.\n"
         f"• 🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>): <b>{fix_count}</b> чел.\n\n"
         f"⏱ <b>Интервал проверки онлайна:</b> каждые <code>2 сек</code>\n"
-        f"🕒 <i>Время отчета: {now_str}</i>"
+        f"🕒 <i>Время отчета (МСК): {now_str}</i>"
     )
     return text
 
