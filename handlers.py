@@ -76,9 +76,9 @@ def get_live_status_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 async def live_update_loop(chat_id: int, message_id: int, bot):
-    """Background task to continuously edit and update status message live."""
+    """Background task to continuously edit and update status message live indefinitely."""
     try:
-        for _ in range(200):
+        while True:
             await asyncio.sleep(3)
             try:
                 new_text = await generate_live_status_text()
@@ -91,11 +91,16 @@ async def live_update_loop(chat_id: int, message_id: int, bot):
                     disable_web_page_preview=True
                 )
             except TelegramBadRequest as e:
-                if "message is not modified" not in str(e):
-                    logger.warning(f"Live update warning for chat {chat_id}: {e}")
+                err_msg = str(e).lower()
+                if "message is not modified" in err_msg:
+                    pass
+                elif "message to edit not found" in err_msg or "message can't be edited" in err_msg or "chat not found" in err_msg:
+                    logger.info(f"Stopping live update loop for chat {chat_id}: message deleted or unavailable.")
+                    break
+                else:
+                    logger.warning(f"TelegramBadRequest in live update loop for chat {chat_id}: {e}")
             except Exception as e:
-                logger.error(f"Error in live update loop for chat {chat_id}: {e}")
-                break
+                logger.warning(f"Temporary error in live update loop for chat {chat_id}: {e}. Retrying...")
     except asyncio.CancelledError:
         pass
     finally:
