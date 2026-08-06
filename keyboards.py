@@ -3,7 +3,7 @@ from config import YOUTUBERS, CREATOR
 import database as db
 
 def get_main_keyboard() -> ReplyKeyboardMarkup:
-    """Returns main menu reply keyboard (without General Status)."""
+    """Returns main menu reply keyboard."""
     keyboard = [
         [
             KeyboardButton(text="🎬 Лололошка"),

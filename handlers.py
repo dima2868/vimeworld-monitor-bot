@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from aiogram import Router, F
-from aiogram.filters import Command, or_f
+from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramRetryAfter, TelegramAPIError
 from config import YOUTUBERS, CREATOR
@@ -106,7 +106,11 @@ async def handle_fixplay(message: Message):
         await asyncio.sleep(e.retry_after)
         await message.answer(msg_text, reply_markup=kb, parse_mode="HTML")
 
-@router.message(or_f(Command("monitoring"), F.text.contains("Мониторинг"), F.text.contains("уведомления")))
+@router.message(Command("monitoring"))
+@router.message(F.text.contains("уведомлен"))
+@router.message(F.text.contains("Уведомлен"))
+@router.message(F.text.contains("Мониторинг"))
+@router.message(F.text.contains("мониторинг"))
 async def handle_monitoring(message: Message):
     """Shows monitoring menu with toggle controls."""
     user_id = message.from_user.id
