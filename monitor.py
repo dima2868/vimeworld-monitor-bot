@@ -40,9 +40,11 @@ async def start_monitoring(bot: Bot):
                     subscribers = await db.get_subscribers_for_player(nick)
                     if subscribers:
                         now_str = datetime.now().strftime("%H:%M:%S")
+                        game_str = f"\n🎮 Режим игры: <b>{info['game']}</b>" if info.get('game') else ""
+                        
                         alert_msg = (
                             f"🚨 <b>{data['icon']} {data['name'].upper()} В СЕТИ!</b> 🚨\n\n"
-                            f"🎮 <b>{data['name']}</b> (<code>{nick}</code>) только что зашел на VimeWorld!\n"
+                            f"🎮 <b>{data['name']}</b> (<code>{nick}</code>) только что зашел на VimeWorld!{game_str}\n"
                             f"⏰ Время входа: <b>{now_str}</b>\n\n"
                             f"🔗 <a href='{data['url']}'>Перейти на профиль VimeWorld</a>"
                         )

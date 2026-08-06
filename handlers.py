@@ -11,7 +11,13 @@ router = Router()
 def format_status_msg(info: dict, custom_title: str = None) -> str:
     """Formats player info into a clean Telegram HTML message."""
     title = custom_title or info['nickname']
-    status_icon = "🟢 <b>В СЕТИ</b>" if info['is_online'] else "🔴 <b>НЕ В СЕТИ</b>"
+    
+    if info['is_online']:
+        status_icon = "🟢 <b>В СЕТИ</b>"
+        if info.get('game'):
+            status_icon += f" (Режим: <code>{info['game']}</code>)"
+    else:
+        status_icon = "🔴 <b>НЕ В СЕТИ</b>"
     
     text = f"<b>{title}</b> (<code>{info['nickname']}</code>)\n\n"
     text += f"Статус: {status_icon}\n"
@@ -30,7 +36,7 @@ async def cmd_start(message: Message):
     
     welcome_text = (
         "👋 <b>Привет! Я бот-мониторинг онлайна на VimeWorld!</b>\n\n"
-        "Я могу оперативно сообщать тебе, когда твои любимые ютуберы заходят на сервер:\n"
+        "Я каждые 2 секунды отслеживаю сервер и оперативно сообщаю, когда ютуберы заходят в сеть:\n"
         "• 🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>)\n"
         "• 🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>)\n\n"
         "Выбери нужный раздел на клавиатуре ниже или включи авто-мониторинг!"
@@ -79,15 +85,24 @@ async def handle_all_status(message: Message):
     text = "📊 <b>Текущий онлайн ютуберов на VimeWorld:</b>\n\n"
     
     # Lololoshka
-    lol_icon = "🟢 В СЕТИ" if lol_info['is_online'] else "🔴 Не в сети"
+    if lol_info['is_online']:
+        lol_icon = f"🟢 В СЕТИ ({lol_info['game']})" if lol_info.get('game') else "🟢 В СЕТИ"
+    else:
+        lol_icon = "🔴 Не в сети"
     text += f"🎬 <b>Лололошка</b> (<code>{lol_info['nickname']}</code>): {lol_icon}\n"
     
     # FixPlay
-    fix_icon = "🟢 В СЕТИ" if fix_info['is_online'] else "🔴 Не в сети"
+    if fix_info['is_online']:
+        fix_icon = f"🟢 В СЕТИ ({fix_info['game']})" if fix_info.get('game') else "🟢 В СЕТИ"
+    else:
+        fix_icon = "🔴 Не в сети"
     text += f"🎮 <b>Фиксплей</b> (<code>{fix_info['nickname']}</code>): {fix_icon}\n\n"
     
     # Creator
-    creator_icon = "🟢 В СЕТИ" if creator_info['is_online'] else "🔴 Не в сети"
+    if creator_info['is_online']:
+        creator_icon = f"🟢 В СЕТИ ({creator_info['game']})" if creator_info.get('game') else "🟢 В СЕТИ"
+    else:
+        creator_icon = "🔴 Не в сети"
     text += f"👑 <b>Создатель бота</b> (<a href='{CREATOR['url']}'>{CREATOR['name']}</a>): {creator_icon}\n"
 
     await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
@@ -98,8 +113,8 @@ async def handle_monitoring(message: Message):
     kb = await keyboards.get_monitoring_inline_keyboard(message.from_user.id)
     text = (
         "🔔 <b>Настройка авто-мониторинга</b>\n\n"
-        "Включи тумблер для интересующих тебя ютуберов, и бот мгновенно отправит тебе "
-        "уведомление в Telegram, как только они зайдут в сеть!"
+        "Включи тумблер для интересующих тебя ютуберов, и бот каждые 2 секунды проверяет их статус "
+        "и мгновенно отправит тебе уведомление в Telegram, как только они зайдут в сеть!"
     )
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
@@ -107,8 +122,14 @@ async def handle_monitoring(message: Message):
 async def handle_creator(message: Message):
     """Shows creator info with live VimeWorld status."""
     info = await checker.fetch_player_status(CREATOR["nick"])
-    status_icon = "🟢 <b>В СЕТИ</b>" if info['is_online'] else "🔴 <b>НЕ В СЕТИ</b>"
     
+    if info['is_online']:
+        status_icon = "🟢 <b>В СЕТИ</b>"
+        if info.get('game'):
+            status_icon += f" (Режим: <code>{info['game']}</code>)"
+    else:
+        status_icon = "🔴 <b>НЕ В СЕТИ</b>"
+        
     text = (
         f"👑 <b>Создатель бота:</b> <a href='{CREATOR['url']}'>{CREATOR['name']}</a>\n\n"
         f"Текущий статус на VimeWorld: {status_icon}\n"
@@ -124,7 +145,7 @@ async def handle_creator(message: Message):
         InlineKeyboardButton(text="👑 Профиль Создателя на VimeWorld", url=CREATOR['url'])
     ]])
     
-    await message.answer(text, reply_markup=kb, parse_mode="HTML", disable_web_page_preview=True)
+    await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
 
 # Callback handlers for monitoring inline keyboard
 @router.callback_query(F.data.startswith("toggle_"))
