@@ -20,16 +20,10 @@ active_live_tasks = {}
 def format_status_msg(info: dict, custom_title: str = None) -> str:
     """Formats player info into a clean Telegram HTML message."""
     title = custom_title or info['nickname']
-    
-    if info['is_online']:
-        status_icon = "🟢 <b>В СЕТИ</b>"
-        if info.get('game'):
-            status_icon += f" (Режим: <code>{info['game']}</code>)"
-    else:
-        status_icon = "🔴 <b>НЕ В СЕТИ</b>"
+    status_icon = info['status_display']
     
     text = f"<b>{title}</b> (<code>{info['nickname']}</code>)\n\n"
-    text += f"Статус: {status_icon}\n"
+    text += f"Статус: <b>{status_icon}</b>\n"
     if info.get('level') is not None:
         text += f"Уровень: <b>{info['level']}</b>\n"
     if info.get('rank'):
@@ -45,19 +39,8 @@ async def generate_live_status_text() -> str:
 
     text = "📊 <b>Онлайн ютуберов на VimeWorld (Live ⚡):</b>\n\n"
     
-    # Lololoshka
-    if lol_info['is_online']:
-        lol_icon = f"🟢 <b>В СЕТИ</b> (Режим: <code>{lol_info['game']}</code>)" if lol_info.get('game') else "🟢 <b>В СЕТИ</b>"
-    else:
-        lol_icon = "🔴 <b>Не в сети</b>"
-    text += f"🎬 <b>Лололошка</b> (<code>{lol_info['nickname']}</code>): {lol_icon}\n"
-    
-    # FixPlay
-    if fix_info['is_online']:
-        fix_icon = f"🟢 <b>В СЕТИ</b> (Режим: <code>{fix_info['game']}</code>)" if fix_info.get('game') else "🟢 <b>В СЕТИ</b>"
-    else:
-        fix_icon = "🔴 <b>Не в сети</b>"
-    text += f"🎮 <b>Фиксплей</b> (<code>{fix_info['nickname']}</code>): {fix_icon}\n\n"
+    text += f"🎬 <b>Лололошка</b> (<code>{lol_info['nickname']}</code>): {lol_info['status_display']}\n"
+    text += f"🎮 <b>Фиксплей</b> (<code>{fix_info['nickname']}</code>): {fix_info['status_display']}\n\n"
     
     now_str = datetime.now().strftime("%H:%M:%S")
     text += f"⚡ <i>Live авто-обновление (каждые 5 сек)...</i>\n"
@@ -86,7 +69,6 @@ async def live_update_loop(chat_id: int, message_id: int, bot):
             await asyncio.sleep(5)
             try:
                 new_text = await generate_live_status_text()
-                # Only edit if content changed or time updated
                 if new_text != last_text:
                     await bot.edit_message_text(
                         chat_id=chat_id,
@@ -124,17 +106,17 @@ async def generate_monitoring_text(user_id: int) -> str:
     fix_active = "F1xPlay_" in subs
     
     if lol_active and fix_active:
-        overall_status = "🟢 <b>Мониторинг полностью ВКЛЮЧЕН</b> (Лололошка + Фиксплей)"
+        overall_status = "🟢 <b>Уведомления полностью ВКЛЮЧЕНЫ</b> (Лололошка + Фиксплей)"
     elif lol_active or fix_active:
         active_name = "Лололошка" if lol_active else "Фиксплей"
-        overall_status = f"🟡 <b>Мониторинг ВКЛЮЧЕН частично</b> (только {active_name})"
+        overall_status = f"🟡 <b>Уведомления ВКЛЮЧЕНЫ частично</b> (только {active_name})"
     else:
-        overall_status = "🔴 <b>Мониторинг ВЫКЛЮЧЕН</b>"
+        overall_status = "🔴 <b>Уведомления ВЫКЛЮЧЕНЫ</b>"
 
     text = (
-        f"🔔 <b>Управление мониторингом онлайна</b>\n\n"
+        f"🔔 <b>Управление уведомлениями онлайна</b>\n\n"
         f"Текущее состояние: {overall_status}\n\n"
-        "Нажимай на кнопки ниже, чтобы переключать уведомления для ютуберов:"
+        "Бот пришлёт вам уведомление, когда ютубер зайдёт на <b>Solo Leveling</b>, перейдёт в <b>лобби</b> или выйдет <b>офлайн</b>."
     )
     return text
 
@@ -145,10 +127,10 @@ async def cmd_start(message: Message):
     
     welcome_text = (
         "👋 <b>Привет! Я бот-мониторинг онлайна на VimeWorld!</b>\n\n"
-        "Я постоянно отслеживаю сервер и оперативно сообщаю, когда ютуберы заходят в сеть:\n"
+        "Я постоянно отслеживаю сервер и отправляю уведомления при входе на <b>Solo Leveling</b>, смене режима или выходе:\n"
         "• 🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>)\n"
         "• 🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>)\n\n"
-        "Выбери нужный раздел на клавиатуре ниже или включи авто-мониторинг!"
+        "Выбери нужный раздел на клавиатуре ниже или настрой уведомления!"
     )
     
     try:
@@ -257,8 +239,8 @@ async def cb_stop_live_status(callback: CallbackQuery):
     fix_info = await checker.fetch_player_status(YOUTUBERS["F1xPlay_"]["nick"])
     
     text = "📊 <b>Онлайн ютуберов на VimeWorld:</b>\n\n"
-    text += f"🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>): {'🟢 <b>В СЕТИ</b>' if lol_info['is_online'] else '🔴 <b>Не в сети</b>'}\n"
-    text += f"🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>): {'🟢 <b>В СЕТИ</b>' if fix_info['is_online'] else '🔴 <b>Не в сети</b>'}\n\n"
+    text += f"🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>): {lol_info['status_display']}\n"
+    text += f"🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>): {fix_info['status_display']}\n\n"
     text += f"⏹ <i>Авто-обновление остановлено ({now_str}).</i>"
     
     try:
@@ -267,7 +249,7 @@ async def cb_stop_live_status(callback: CallbackQuery):
         pass
     await callback.answer("⏹ Авто-обновление остановлено")
 
-@router.message(or_f(Command("monitoring"), F.text.contains("Мониторинг"), F.text.contains("мониторинг")))
+@router.message(or_f(Command("monitoring"), F.text.contains("Мониторинг"), F.text.contains("мониторинг"), F.text.contains("уведомления")))
 async def handle_monitoring(message: Message):
     """Shows monitoring menu with toggle controls."""
     user_id = message.from_user.id
@@ -284,17 +266,11 @@ async def handle_monitoring(message: Message):
 async def handle_creator(message: Message):
     """Shows creator info with live VimeWorld status."""
     info = await checker.fetch_player_status(CREATOR["nick"])
-    
-    if info['is_online']:
-        status_icon = "🟢 <b>В СЕТИ</b>"
-        if info.get('game'):
-            status_icon += f" (Режим: <code>{info['game']}</code>)"
-    else:
-        status_icon = "🔴 <b>НЕ В СЕТИ</b>"
+    status_icon = info['status_display']
         
     text = (
         f"👑 <b>Создатель бота:</b> <a href='{CREATOR['url']}'>{CREATOR['name']}</a>\n\n"
-        f"Текущий статус на VimeWorld: {status_icon}\n"
+        f"Текущий статус на VimeWorld: <b>{status_icon}</b>\n"
     )
     if info.get('level') is not None:
         text += f"Уровень: <b>{info['level']}</b>\n"
@@ -323,10 +299,10 @@ async def cb_toggle(callback: CallbackQuery):
     is_sub = await db.is_subscribed(user_id, nick)
     if is_sub:
         await db.unsubscribe_user(user_id, nick)
-        await callback.answer("🔴 Мониторинг отключен!")
+        await callback.answer("🔴 Уведомления отключены!")
     else:
         await db.subscribe_user(user_id, nick)
-        await callback.answer("🟢 Мониторинг включен!")
+        await callback.answer("🟢 Уведомления включены!")
         
     text = await generate_monitoring_text(user_id)
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
@@ -342,7 +318,7 @@ async def cb_enable_all(callback: CallbackQuery):
     
     for nick in YOUTUBERS.keys():
         await db.subscribe_user(user_id, nick)
-    await callback.answer("🟢 Мониторинг всех ютуберов ВКЛЮЧЕН!")
+    await callback.answer("🟢 Уведомления включены!")
     
     text = await generate_monitoring_text(user_id)
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
@@ -358,7 +334,7 @@ async def cb_disable_all(callback: CallbackQuery):
     
     for nick in YOUTUBERS.keys():
         await db.unsubscribe_user(user_id, nick)
-    await callback.answer("🔴 Мониторинг всех ютуберов ВЫКЛЮЧЕН!")
+    await callback.answer("🔴 Уведомления отключены!")
     
     text = await generate_monitoring_text(user_id)
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)

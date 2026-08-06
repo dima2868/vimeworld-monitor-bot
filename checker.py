@@ -21,7 +21,11 @@ async def get_session() -> aiohttp.ClientSession:
 async def fetch_player_status(nickname: str) -> dict:
     """
     Fetches real-time online status and details for a VimeWorld player.
-    Uses official VimeWorld Session API endpoint (https://api.vimeworld.com/user/name/{nickname}/session).
+    Classifies state:
+    - OFFLINE: Not connected
+    - LOBBY: Online but not in a specific game
+    - SOLOLEVELING: Online playing Solo Leveling
+    - OTHER_GAME: Online playing another mode
     """
     api_url = f"https://api.vimeworld.com/user/name/{nickname}/session"
     web_url = f"https://vimeworld.com/player/{nickname}"
@@ -29,7 +33,8 @@ async def fetch_player_status(nickname: str) -> dict:
     result = {
         "nickname": nickname,
         "is_online": False,
-        "status_text": "Не в сети",
+        "state": "OFFLINE",
+        "status_display": "🔴 Не в сети",
         "game": None,
         "level": None,
         "rank": None,
@@ -53,9 +58,22 @@ async def fetch_player_status(nickname: str) -> dict:
                     
                     result["is_online"] = is_online
                     result["game"] = game_mode
-                    result["status_text"] = "Онлайн" if is_online else "Не в сети"
                     result["level"] = user_data.get("level")
                     result["rank"] = user_data.get("rank")
+                    
+                    if not is_online:
+                        result["state"] = "OFFLINE"
+                        result["status_display"] = "🔴 Не в сети"
+                    elif game_mode and "SOLOLEVELING" in str(game_mode).upper():
+                        result["state"] = "SOLOLEVELING"
+                        result["status_display"] = "🟢 На Solo Leveling"
+                    elif game_mode:
+                        result["state"] = "OTHER_GAME"
+                        result["status_display"] = f"🔵 В игре ({game_mode})"
+                    else:
+                        result["state"] = "LOBBY"
+                        result["status_display"] = "🟡 В лобби"
+                        
                     return result
     except Exception as e:
         logger.warning(f"VimeWorld Session API request failed for {nickname}: {e}. Falling back to web scraping.")
@@ -65,14 +83,15 @@ async def fetch_player_status(nickname: str) -> dict:
         async with session.get(web_url, timeout=5) as resp:
             if resp.status == 200:
                 html = await resp.text()
-                soup = BeautifulSoup(html, "html.parser")
                 
                 if "vw-7ya4b" in html or "Онлайн" in html:
                     result["is_online"] = True
-                    result["status_text"] = "Онлайн"
+                    result["state"] = "LOBBY"
+                    result["status_display"] = "🟢 Онлайн"
                 else:
                     result["is_online"] = False
-                    result["status_text"] = "Не в сети"
+                    result["state"] = "OFFLINE"
+                    result["status_display"] = "🔴 Не в сети"
                             
                 lvl_match = re.search(r'(\d+)\s*уровень', html, re.IGNORECASE)
                 if lvl_match:

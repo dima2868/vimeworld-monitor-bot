@@ -24,9 +24,17 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS player_status (
                 target_nick TEXT PRIMARY KEY,
                 is_online INTEGER,
+                last_state TEXT DEFAULT 'OFFLINE',
                 last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Ensure column last_state exists for database migrations
+        try:
+            await db.execute("ALTER TABLE player_status ADD COLUMN last_state TEXT DEFAULT 'OFFLINE'")
+        except Exception:
+            pass # Column already exists
+            
         await db.commit()
     logger.info("Database initialized successfully.")
 
@@ -87,27 +95,28 @@ async def get_subscribers_for_player(target_nick: str) -> list:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
 
-async def get_player_last_status(target_nick: str) -> bool:
-    """Gets the last recorded online status of a player (True/False). Defaults to False if unknown."""
+async def get_player_last_state(target_nick: str) -> str:
+    """Gets the last recorded state of a player ('OFFLINE', 'LOBBY', 'SOLOLEVELING', 'OTHER_GAME')."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT is_online FROM player_status WHERE target_nick = ?",
+            "SELECT last_state FROM player_status WHERE target_nick = ?",
             (target_nick,)
         ) as cursor:
             row = await cursor.fetchone()
-            return bool(row[0]) if row else False
+            return row[0] if (row and row[0]) else "OFFLINE"
 
-async def update_player_last_status(target_nick: str, is_online: bool):
-    """Updates the recorded online status for a player."""
+async def update_player_last_state(target_nick: str, state: str, is_online: bool):
+    """Updates the recorded state for a player."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """
-            INSERT INTO player_status (target_nick, is_online, last_checked)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO player_status (target_nick, is_online, last_state, last_checked)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(target_nick) DO UPDATE SET
                 is_online = excluded.is_online,
+                last_state = excluded.last_state,
                 last_checked = CURRENT_TIMESTAMP
             """,
-            (target_nick, 1 if is_online else 0)
+            (target_nick, 1 if is_online else 0, state)
         )
         await db.commit()
