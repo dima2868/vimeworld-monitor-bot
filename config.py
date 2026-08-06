@@ -29,8 +29,8 @@ CREATOR = {
     "icon": "👑",
 }
 
-# Check interval in seconds for background monitoring (1 second tick)
-CHECK_INTERVAL = 1
+# Check interval in seconds for background monitoring (2 seconds)
+CHECK_INTERVAL = 2
 
 # Database path
 DB_PATH = os.getenv("DB_PATH", "bot_data.db")

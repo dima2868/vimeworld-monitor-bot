@@ -4,7 +4,7 @@ from datetime import datetime
 from aiogram import Router, F
 from aiogram.filters import Command, or_f
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter, TelegramAPIError
 from config import YOUTUBERS, CREATOR
 import checker
 import database as db
@@ -60,7 +60,7 @@ async def generate_live_status_text() -> str:
     text += f"🎮 <b>Фиксплей</b> (<code>{fix_info['nickname']}</code>): {fix_icon}\n\n"
     
     now_str = datetime.now().strftime("%H:%M:%S")
-    text += f"⚡ <i>Live авто-обновление (каждую сек)...</i>\n"
+    text += f"⚡ <i>Live авто-обновление (каждые 5 сек)...</i>\n"
     text += f"🕒 <i>Обновлено: {now_str}</i>"
     
     return text
@@ -76,20 +76,30 @@ def get_live_status_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 async def live_update_loop(chat_id: int, message_id: int, bot):
-    """Background task to continuously edit and update status message live indefinitely every 1 second."""
+    """
+    Background task to continuously edit and update status message live indefinitely.
+    Uses safe 5-second interval to avoid Telegram Flood Limits (Too Many Requests).
+    """
+    last_text = ""
     try:
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(5)
             try:
                 new_text = await generate_live_status_text()
-                await bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    text=new_text,
-                    reply_markup=get_live_status_keyboard(),
-                    parse_mode="HTML",
-                    disable_web_page_preview=True
-                )
+                # Only edit if content changed or time updated
+                if new_text != last_text:
+                    await bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=new_text,
+                        reply_markup=get_live_status_keyboard(),
+                        parse_mode="HTML",
+                        disable_web_page_preview=True
+                    )
+                    last_text = new_text
+            except TelegramRetryAfter as e:
+                logger.warning(f"Flood limit reached for chat {chat_id}. Sleeping for {e.retry_after} seconds...")
+                await asyncio.sleep(e.retry_after + 1)
             except TelegramBadRequest as e:
                 err_msg = str(e).lower()
                 if "message is not modified" in err_msg:
@@ -100,7 +110,7 @@ async def live_update_loop(chat_id: int, message_id: int, bot):
                 else:
                     logger.warning(f"TelegramBadRequest in live update loop for chat {chat_id}: {e}")
             except Exception as e:
-                logger.warning(f"Temporary error in live update loop for chat {chat_id}: {e}. Retrying...")
+                logger.warning(f"Temporary error in live update loop for chat {chat_id}: {e}. Retrying in 5s...")
     except asyncio.CancelledError:
         pass
     finally:
@@ -135,18 +145,22 @@ async def cmd_start(message: Message):
     
     welcome_text = (
         "👋 <b>Привет! Я бот-мониторинг онлайна на VimeWorld!</b>\n\n"
-        "Я каждые 2 секунды отслеживаю сервер и оперативно сообщаю, когда ютуберы заходят в сеть:\n"
+        "Я постоянно отслеживаю сервер и оперативно сообщаю, когда ютуберы заходят в сеть:\n"
         "• 🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>)\n"
         "• 🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>)\n\n"
         "Выбери нужный раздел на клавиатуре ниже или включи авто-мониторинг!"
     )
     
-    await message.answer(
-        welcome_text,
-        reply_markup=keyboards.get_main_keyboard(),
-        parse_mode="HTML",
-        disable_web_page_preview=True
-    )
+    try:
+        await message.answer(
+            welcome_text,
+            reply_markup=keyboards.get_main_keyboard(),
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await message.answer(welcome_text, reply_markup=keyboards.get_main_keyboard(), parse_mode="HTML")
 
 @router.message(F.text.contains("Лололошка"))
 async def handle_lololoshka(message: Message):
@@ -158,7 +172,11 @@ async def handle_lololoshka(message: Message):
         InlineKeyboardButton(text="🌐 Профиль VimeWorld", url=info['url'])
     ]])
     
-    await message.answer(msg_text, reply_markup=kb, parse_mode="HTML", disable_web_page_preview=True)
+    try:
+        await message.answer(msg_text, reply_markup=kb, parse_mode="HTML", disable_web_page_preview=True)
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await message.answer(msg_text, reply_markup=kb, parse_mode="HTML")
 
 @router.message(F.text.contains("Фиксплей"))
 async def handle_fixplay(message: Message):
@@ -170,7 +188,11 @@ async def handle_fixplay(message: Message):
         InlineKeyboardButton(text="🌐 Профиль VimeWorld", url=info['url'])
     ]])
     
-    await message.answer(msg_text, reply_markup=kb, parse_mode="HTML", disable_web_page_preview=True)
+    try:
+        await message.answer(msg_text, reply_markup=kb, parse_mode="HTML", disable_web_page_preview=True)
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await message.answer(msg_text, reply_markup=kb, parse_mode="HTML")
 
 @router.message(F.text.contains("Общий статус"))
 async def handle_all_status(message: Message):
@@ -181,15 +203,26 @@ async def handle_all_status(message: Message):
         active_live_tasks[chat_id].cancel()
         
     initial_text = await generate_live_status_text()
-    sent_msg = await message.answer(
-        initial_text,
-        reply_markup=get_live_status_keyboard(),
-        parse_mode="HTML",
-        disable_web_page_preview=True
-    )
-    
-    task = asyncio.create_task(live_update_loop(chat_id, sent_msg.message_id, message.bot))
-    active_live_tasks[chat_id] = task
+    try:
+        sent_msg = await message.answer(
+            initial_text,
+            reply_markup=get_live_status_keyboard(),
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+        task = asyncio.create_task(live_update_loop(chat_id, sent_msg.message_id, message.bot))
+        active_live_tasks[chat_id] = task
+    except TelegramRetryAfter as e:
+        logger.warning(f"TelegramRetryAfter during answer: waiting {e.retry_after}s...")
+        await asyncio.sleep(e.retry_after + 1)
+        sent_msg = await message.answer(
+            initial_text,
+            reply_markup=get_live_status_keyboard(),
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+        task = asyncio.create_task(live_update_loop(chat_id, sent_msg.message_id, message.bot))
+        active_live_tasks[chat_id] = task
 
 @router.callback_query(F.data == "refresh_live_status")
 async def cb_refresh_live_status(callback: CallbackQuery):
@@ -203,6 +236,8 @@ async def cb_refresh_live_status(callback: CallbackQuery):
             disable_web_page_preview=True
         )
         await callback.answer("🔄 Статус обновлен!")
+    except TelegramRetryAfter as e:
+        await callback.answer(f"⏳ Слишком часто! Подождите {e.retry_after} сек.")
     except TelegramBadRequest as e:
         if "message is not modified" in str(e):
             await callback.answer("Статус актуален")
@@ -226,7 +261,10 @@ async def cb_stop_live_status(callback: CallbackQuery):
     text += f"🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>): {'🟢 <b>В СЕТИ</b>' if fix_info['is_online'] else '🔴 <b>Не в сети</b>'}\n\n"
     text += f"⏹ <i>Авто-обновление остановлено ({now_str}).</i>"
     
-    await callback.message.edit_text(text, parse_mode="HTML", disable_web_page_preview=True)
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", disable_web_page_preview=True)
+    except TelegramAPIError:
+        pass
     await callback.answer("⏹ Авто-обновление остановлено")
 
 @router.message(or_f(Command("monitoring"), F.text.contains("Мониторинг"), F.text.contains("мониторинг")))
@@ -236,7 +274,11 @@ async def handle_monitoring(message: Message):
     await db.add_user(user_id)
     text = await generate_monitoring_text(user_id)
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
-    await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    try:
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 @router.message(F.text.contains("Создатель"))
 async def handle_creator(message: Message):
@@ -265,7 +307,11 @@ async def handle_creator(message: Message):
         InlineKeyboardButton(text="👑 Профиль Создателя на VimeWorld", url=CREATOR['url'])
     ]])
     
-    await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
+    try:
+        await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await message.answer(text, parse_mode="HTML")
 
 # Callback handlers for monitoring inline keyboard
 @router.callback_query(F.data.startswith("toggle_"))
@@ -286,7 +332,7 @@ async def cb_toggle(callback: CallbackQuery):
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
     try:
         await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
-    except TelegramBadRequest:
+    except TelegramAPIError:
         pass
 
 @router.callback_query(F.data == "enable_all")
@@ -302,7 +348,7 @@ async def cb_enable_all(callback: CallbackQuery):
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
     try:
         await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
-    except TelegramBadRequest:
+    except TelegramAPIError:
         pass
 
 @router.callback_query(F.data == "disable_all")
@@ -318,5 +364,5 @@ async def cb_disable_all(callback: CallbackQuery):
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
     try:
         await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
-    except TelegramBadRequest:
+    except TelegramAPIError:
         pass
