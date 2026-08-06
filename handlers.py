@@ -60,8 +60,8 @@ async def generate_live_status_text() -> str:
     text += f"🎮 <b>Фиксплей</b> (<code>{fix_info['nickname']}</code>): {fix_icon}\n\n"
     
     now_str = datetime.now().strftime("%H:%M:%S")
-    text += f"🔄 <i>Авто-обновление каждые 3 сек...</i>\n"
-    text += f"🕒 <i>Последнее обновление: {now_str}</i>"
+    text += f"⚡ <i>Live авто-обновление (каждую сек)...</i>\n"
+    text += f"🕒 <i>Обновлено: {now_str}</i>"
     
     return text
 
@@ -76,10 +76,10 @@ def get_live_status_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 async def live_update_loop(chat_id: int, message_id: int, bot):
-    """Background task to continuously edit and update status message live indefinitely."""
+    """Background task to continuously edit and update status message live indefinitely every 1 second."""
     try:
         while True:
-            await asyncio.sleep(3)
+            await asyncio.sleep(1)
             try:
                 new_text = await generate_live_status_text()
                 await bot.edit_message_text(
