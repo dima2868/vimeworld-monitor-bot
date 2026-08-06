@@ -1,12 +1,21 @@
+import asyncio
+import logging
+from datetime import datetime
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.exceptions import TelegramBadRequest
 from config import YOUTUBERS, CREATOR
 import checker
 import database as db
 import keyboards
 
+logger = logging.getLogger(__name__)
+
 router = Router()
+
+# Store active live update tasks: chat_id -> asyncio.Task
+active_live_tasks = {}
 
 def format_status_msg(info: dict, custom_title: str = None) -> str:
     """Formats player info into a clean Telegram HTML message."""
@@ -28,6 +37,71 @@ def format_status_msg(info: dict, custom_title: str = None) -> str:
         
     text += f"\n🔗 <a href='{info['url']}'>Открыть профиль на VimeWorld</a>"
     return text
+
+async def generate_live_status_text() -> str:
+    """Generates live status text for YouTubers (excluding creator)."""
+    lol_info = await checker.fetch_player_status(YOUTUBERS["MrLalalashkaXXL"]["nick"])
+    fix_info = await checker.fetch_player_status(YOUTUBERS["F1xPlay_"]["nick"])
+
+    text = "📊 <b>Онлайн ютуберов на VimeWorld (Live ⚡):</b>\n\n"
+    
+    # Lololoshka
+    if lol_info['is_online']:
+        lol_icon = f"🟢 <b>В СЕТИ</b> (Режим: <code>{lol_info['game']}</code>)" if lol_info.get('game') else "🟢 <b>В СЕТИ</b>"
+    else:
+        lol_icon = "🔴 <b>Не в сети</b>"
+    text += f"🎬 <b>Лололошка</b> (<code>{lol_info['nickname']}</code>): {lol_icon}\n"
+    
+    # FixPlay
+    if fix_info['is_online']:
+        fix_icon = f"🟢 <b>В СЕТИ</b> (Режим: <code>{fix_info['game']}</code>)" if fix_info.get('game') else "🟢 <b>В СЕТИ</b>"
+    else:
+        fix_icon = "🔴 <b>Не в сети</b>"
+    text += f"🎮 <b>Фиксплей</b> (<code>{fix_info['nickname']}</code>): {fix_icon}\n\n"
+    
+    now_str = datetime.now().strftime("%H:%M:%S")
+    text += f"🔄 <i>Авто-обновление каждые 3 сек...</i>\n"
+    text += f"🕒 <i>Последнее обновление: {now_str}</i>"
+    
+    return text
+
+def get_live_status_keyboard() -> InlineKeyboardMarkup:
+    """Inline keyboard for live status message."""
+    keyboard = [
+        [
+            InlineKeyboardButton(text="🔄 Обновить сейчас", callback_data="refresh_live_status"),
+            InlineKeyboardButton(text="⏹ Стоп", callback_data="stop_live_status")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+async def live_update_loop(chat_id: int, message_id: int, bot):
+    """Background task to continuously edit and update status message live."""
+    try:
+        # Run auto-update for up to 200 iterations (~10 minutes of live updating)
+        for _ in range(200):
+            await asyncio.sleep(3)
+            try:
+                new_text = await generate_live_status_text()
+                await bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=new_text,
+                    reply_markup=get_live_status_keyboard(),
+                    parse_mode="HTML",
+                    disable_web_page_preview=True
+                )
+            except TelegramBadRequest as e:
+                # Ignore if content hasn't changed or message hasn't been edited
+                if "message is not modified" not in str(e):
+                    logger.warning(f"Live update warning for chat {chat_id}: {e}")
+            except Exception as e:
+                logger.error(f"Error in live update loop for chat {chat_id}: {e}")
+                break
+    except asyncio.CancelledError:
+        pass
+    finally:
+        active_live_tasks.pop(chat_id, None)
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
@@ -75,37 +149,63 @@ async def handle_fixplay(message: Message):
 
 @router.message(F.text.contains("Общий статус"))
 async def handle_all_status(message: Message):
-    """Checks all YouTubers + Creator status."""
-    await message.answer("🔄 <i>Запрашиваю свежую информацию с VimeWorld...</i>", parse_mode="HTML")
+    """Checks all YouTubers status with live auto-updating message."""
+    chat_id = message.chat.id
     
+    # Cancel previous live update task if running
+    if chat_id in active_live_tasks:
+        active_live_tasks[chat_id].cancel()
+        
+    initial_text = await generate_live_status_text()
+    sent_msg = await message.answer(
+        initial_text,
+        reply_markup=get_live_status_keyboard(),
+        parse_mode="HTML",
+        disable_web_page_preview=True
+    )
+    
+    # Start live update loop task
+    task = asyncio.create_task(live_update_loop(chat_id, sent_msg.message_id, message.bot))
+    active_live_tasks[chat_id] = task
+
+@router.callback_query(F.data == "refresh_live_status")
+async def cb_refresh_live_status(callback: CallbackQuery):
+    """Manual trigger to refresh live status message."""
+    try:
+        new_text = await generate_live_status_text()
+        await callback.message.edit_text(
+            new_text,
+            reply_markup=get_live_status_keyboard(),
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+        await callback.answer("🔄 Статус обновлен!")
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            await callback.answer("Статус актуален")
+        else:
+            await callback.answer()
+
+@router.callback_query(F.data == "stop_live_status")
+async def cb_stop_live_status(callback: CallbackQuery):
+    """Stops live auto-updating for status message."""
+    chat_id = callback.message.chat.id
+    if chat_id in active_live_tasks:
+        active_live_tasks[chat_id].cancel()
+        active_live_tasks.pop(chat_id, None)
+        
+    now_str = datetime.now().strftime("%H:%M:%S")
+    # Replace status text footer with stopped indicator
     lol_info = await checker.fetch_player_status(YOUTUBERS["MrLalalashkaXXL"]["nick"])
     fix_info = await checker.fetch_player_status(YOUTUBERS["F1xPlay_"]["nick"])
-    creator_info = await checker.fetch_player_status(CREATOR["nick"])
-
-    text = "📊 <b>Текущий онлайн ютуберов на VimeWorld:</b>\n\n"
     
-    # Lololoshka
-    if lol_info['is_online']:
-        lol_icon = f"🟢 В СЕТИ ({lol_info['game']})" if lol_info.get('game') else "🟢 В СЕТИ"
-    else:
-        lol_icon = "🔴 Не в сети"
-    text += f"🎬 <b>Лололошка</b> (<code>{lol_info['nickname']}</code>): {lol_icon}\n"
+    text = "📊 <b>Онлайн ютуберов на VimeWorld:</b>\n\n"
+    text += f"🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>): {'🟢 <b>В СЕТИ</b>' if lol_info['is_online'] else '🔴 <b>Не в сети</b>'}\n"
+    text += f"🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>): {'🟢 <b>В СЕТИ</b>' if fix_info['is_online'] else '🔴 <b>Не в сети</b>'}\n\n"
+    text += f"⏹ <i>Авто-обновление остановлено ({now_str}).</i>"
     
-    # FixPlay
-    if fix_info['is_online']:
-        fix_icon = f"🟢 В СЕТИ ({fix_info['game']})" if fix_info.get('game') else "🟢 В СЕТИ"
-    else:
-        fix_icon = "🔴 Не в сети"
-    text += f"🎮 <b>Фиксплей</b> (<code>{fix_info['nickname']}</code>): {fix_icon}\n\n"
-    
-    # Creator
-    if creator_info['is_online']:
-        creator_icon = f"🟢 В СЕТИ ({creator_info['game']})" if creator_info.get('game') else "🟢 В СЕТИ"
-    else:
-        creator_icon = "🔴 Не в сети"
-    text += f"👑 <b>Создатель бота</b> (<a href='{CREATOR['url']}'>{CREATOR['name']}</a>): {creator_icon}\n"
-
-    await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
+    await callback.message.edit_text(text, parse_mode="HTML", disable_web_page_preview=True)
+    await callback.answer("⏹ Авто-обновление остановлено")
 
 @router.message(F.text.contains("Мониторинг"))
 async def handle_monitoring(message: Message):
