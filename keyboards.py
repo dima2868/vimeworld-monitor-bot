@@ -3,15 +3,14 @@ from config import YOUTUBERS, CREATOR
 import database as db
 
 def get_main_keyboard() -> ReplyKeyboardMarkup:
-    """Returns main menu reply keyboard."""
+    """Returns main menu reply keyboard (without General Status)."""
     keyboard = [
         [
             KeyboardButton(text="🎬 Лололошка"),
             KeyboardButton(text="🎮 Фиксплей")
         ],
         [
-            KeyboardButton(text="📊 Общий статус"),
-            KeyboardButton(text="🔔 Настройка мониторинга")
+            KeyboardButton(text="🔔 Настройка уведомлений")
         ],
         [
             KeyboardButton(text=f"👑 Создатель ({CREATOR['name']})")
@@ -24,13 +23,13 @@ def get_main_keyboard() -> ReplyKeyboardMarkup:
     )
 
 async def get_monitoring_inline_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Generates inline keyboard for monitoring subscriptions."""
+    """Generates inline keyboard for notification subscriptions."""
     subs = await db.get_user_subscriptions(user_id)
     
     lol_sub = "MrLalalashkaXXL" in subs
     fix_sub = "F1xPlay_" in subs
 
-    lol_btn_text = "🎬 Лололошка: 🟢 Включан" if lol_sub else "🎬 Лололошка: 🔴 Выключен"
+    lol_btn_text = "🎬 Лололошка: 🟢 Включен" if lol_sub else "🎬 Лололошка: 🔴 Выключен"
     fix_btn_text = "🎮 Фиксплей: 🟢 Включен" if fix_sub else "🎮 Фиксплей: 🔴 Выключен"
 
     keyboard = [
