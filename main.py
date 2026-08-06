@@ -1,0 +1,49 @@
+import asyncio
+import logging
+import sys
+from aiogram import Bot, Dispatcher
+from config import BOT_TOKEN
+import database as db
+from handlers import router
+import monitor
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+async def main():
+    if not BOT_TOKEN or BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN_HERE":
+        logger.critical("BOT_TOKEN is missing! Please set the BOT_TOKEN environment variable in .env or on Railway.")
+        sys.exit(1)
+
+    logger.info("Initializing database...")
+    await db.init_db()
+
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+    
+    # Include handlers router
+    dp.include_router(router)
+
+    # Launch background monitoring worker
+    monitoring_task = asyncio.create_task(monitor.start_monitoring(bot))
+
+    try:
+        logger.info("Starting Telegram bot polling...")
+        await dp.start_polling(bot)
+    finally:
+        monitoring_task.cancel()
+        await bot.session.close()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped.")
