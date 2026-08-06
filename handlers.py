@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime
 from aiogram import Router, F
-from aiogram.filters import Command
+from aiogram.filters import Command, or_f
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramBadRequest
 from config import YOUTUBERS, CREATOR
@@ -78,7 +78,6 @@ def get_live_status_keyboard() -> InlineKeyboardMarkup:
 async def live_update_loop(chat_id: int, message_id: int, bot):
     """Background task to continuously edit and update status message live."""
     try:
-        # Run auto-update for up to 200 iterations (~10 minutes of live updating)
         for _ in range(200):
             await asyncio.sleep(3)
             try:
@@ -92,7 +91,6 @@ async def live_update_loop(chat_id: int, message_id: int, bot):
                     disable_web_page_preview=True
                 )
             except TelegramBadRequest as e:
-                # Ignore if content hasn't changed or message hasn't been edited
                 if "message is not modified" not in str(e):
                     logger.warning(f"Live update warning for chat {chat_id}: {e}")
             except Exception as e:
@@ -102,6 +100,28 @@ async def live_update_loop(chat_id: int, message_id: int, bot):
         pass
     finally:
         active_live_tasks.pop(chat_id, None)
+
+async def generate_monitoring_text(user_id: int) -> str:
+    """Generates clear monitoring status text for user."""
+    subs = await db.get_user_subscriptions(user_id)
+    
+    lol_active = "MrLalalashkaXXL" in subs
+    fix_active = "F1xPlay_" in subs
+    
+    if lol_active and fix_active:
+        overall_status = "🟢 <b>Мониторинг полностью ВКЛЮЧЕН</b> (Лололошка + Фиксплей)"
+    elif lol_active or fix_active:
+        active_name = "Лололошка" if lol_active else "Фиксплей"
+        overall_status = f"🟡 <b>Мониторинг ВКЛЮЧЕН частично</b> (только {active_name})"
+    else:
+        overall_status = "🔴 <b>Мониторинг ВЫКЛЮЧЕН</b>"
+
+    text = (
+        f"🔔 <b>Управление мониторингом онлайна</b>\n\n"
+        f"Текущее состояние: {overall_status}\n\n"
+        "Нажимай на кнопки ниже, чтобы переключать уведомления для ютуберов:"
+    )
+    return text
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
@@ -152,7 +172,6 @@ async def handle_all_status(message: Message):
     """Checks all YouTubers status with live auto-updating message."""
     chat_id = message.chat.id
     
-    # Cancel previous live update task if running
     if chat_id in active_live_tasks:
         active_live_tasks[chat_id].cancel()
         
@@ -164,7 +183,6 @@ async def handle_all_status(message: Message):
         disable_web_page_preview=True
     )
     
-    # Start live update loop task
     task = asyncio.create_task(live_update_loop(chat_id, sent_msg.message_id, message.bot))
     active_live_tasks[chat_id] = task
 
@@ -195,7 +213,6 @@ async def cb_stop_live_status(callback: CallbackQuery):
         active_live_tasks.pop(chat_id, None)
         
     now_str = datetime.now().strftime("%H:%M:%S")
-    # Replace status text footer with stopped indicator
     lol_info = await checker.fetch_player_status(YOUTUBERS["MrLalalashkaXXL"]["nick"])
     fix_info = await checker.fetch_player_status(YOUTUBERS["F1xPlay_"]["nick"])
     
@@ -207,15 +224,13 @@ async def cb_stop_live_status(callback: CallbackQuery):
     await callback.message.edit_text(text, parse_mode="HTML", disable_web_page_preview=True)
     await callback.answer("⏹ Авто-обновление остановлено")
 
-@router.message(F.text.contains("Мониторинг"))
+@router.message(or_f(Command("monitoring"), F.text.contains("Мониторинг"), F.text.contains("мониторинг")))
 async def handle_monitoring(message: Message):
-    """Shows monitoring menu."""
-    kb = await keyboards.get_monitoring_inline_keyboard(message.from_user.id)
-    text = (
-        "🔔 <b>Настройка авто-мониторинга</b>\n\n"
-        "Включи тумблер для интересующих тебя ютуберов, и бот каждые 2 секунды проверяет их статус "
-        "и мгновенно отправит тебе уведомление в Telegram, как только они зайдут в сеть!"
-    )
+    """Shows monitoring menu with toggle controls."""
+    user_id = message.from_user.id
+    await db.add_user(user_id)
+    text = await generate_monitoring_text(user_id)
+    kb = await keyboards.get_monitoring_inline_keyboard(user_id)
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 @router.message(F.text.contains("Создатель"))
@@ -252,32 +267,51 @@ async def handle_creator(message: Message):
 async def cb_toggle(callback: CallbackQuery):
     nick = callback.data.replace("toggle_", "")
     user_id = callback.from_user.id
+    await db.add_user(user_id)
     
     is_sub = await db.is_subscribed(user_id, nick)
     if is_sub:
         await db.unsubscribe_user(user_id, nick)
-        await callback.answer("❌ Уведомления отключены!")
+        await callback.answer("🔴 Мониторинг отключен!")
     else:
         await db.subscribe_user(user_id, nick)
-        await callback.answer("🟢 Уведомления включены!")
+        await callback.answer("🟢 Мониторинг включен!")
         
+    text = await generate_monitoring_text(user_id)
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
-    await callback.message.edit_reply_markup(reply_markup=kb)
+    try:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except TelegramBadRequest:
+        pass
 
 @router.callback_query(F.data == "enable_all")
 async def cb_enable_all(callback: CallbackQuery):
     user_id = callback.from_user.id
+    await db.add_user(user_id)
+    
     for nick in YOUTUBERS.keys():
         await db.subscribe_user(user_id, nick)
-    await callback.answer("⚡ Мониторинг всех ютуберов включен!")
+    await callback.answer("🟢 Мониторинг всех ютуберов ВКЛЮЧЕН!")
+    
+    text = await generate_monitoring_text(user_id)
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
-    await callback.message.edit_reply_markup(reply_markup=kb)
+    try:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except TelegramBadRequest:
+        pass
 
 @router.callback_query(F.data == "disable_all")
 async def cb_disable_all(callback: CallbackQuery):
     user_id = callback.from_user.id
+    await db.add_user(user_id)
+    
     for nick in YOUTUBERS.keys():
         await db.unsubscribe_user(user_id, nick)
-    await callback.answer("❌ Мониторинг всех ютуберов отключен!")
+    await callback.answer("🔴 Мониторинг всех ютуберов ВЫКЛЮЧЕН!")
+    
+    text = await generate_monitoring_text(user_id)
     kb = await keyboards.get_monitoring_inline_keyboard(user_id)
-    await callback.message.edit_reply_markup(reply_markup=kb)
+    try:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except TelegramBadRequest:
+        pass

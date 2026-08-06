@@ -30,29 +30,29 @@ async def get_monitoring_inline_keyboard(user_id: int) -> InlineKeyboardMarkup:
     lol_sub = "MrLalalashkaXXL" in subs
     fix_sub = "F1xPlay_" in subs
 
-    lol_status_icon = "🟢 Включен" if lol_sub else "🔴 Выключен"
-    fix_status_icon = "🟢 Включен" if fix_sub else "🔴 Выключен"
+    lol_btn_text = "🎬 Лололошка: 🟢 Включан" if lol_sub else "🎬 Лололошка: 🔴 Выключен"
+    fix_btn_text = "🎮 Фиксплей: 🟢 Включен" if fix_sub else "🎮 Фиксплей: 🔴 Выключен"
 
     keyboard = [
         [
             InlineKeyboardButton(
-                text=f"🎬 Лололошка: {lol_status_icon}",
+                text=lol_btn_text,
                 callback_data="toggle_MrLalalashkaXXL"
             )
         ],
         [
             InlineKeyboardButton(
-                text=f"🎮 Фиксплей: {fix_status_icon}",
+                text=fix_btn_text,
                 callback_data="toggle_F1xPlay_"
             )
         ],
         [
             InlineKeyboardButton(
-                text="⚡ Мониторить ВСЕХ",
+                text="🟢 Включить всё",
                 callback_data="enable_all"
             ),
             InlineKeyboardButton(
-                text="❌ Выключить ВСЁ",
+                text="🔴 Выключить всё",
                 callback_data="disable_all"
             )
         ]
