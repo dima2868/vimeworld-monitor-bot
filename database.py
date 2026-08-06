@@ -33,7 +33,7 @@ async def init_db():
         try:
             await db.execute("ALTER TABLE player_status ADD COLUMN last_state TEXT DEFAULT 'OFFLINE'")
         except Exception:
-            pass # Column already exists
+            pass
             
         await db.commit()
     logger.info("Database initialized successfully.")
@@ -120,3 +120,29 @@ async def update_player_last_state(target_nick: str, state: str, is_online: bool
             (target_nick, 1 if is_online else 0, state)
         )
         await db.commit()
+
+# --- ADMIN STATS FUNCTIONS ---
+
+async def get_total_users_count() -> int:
+    """Returns total count of registered bot users."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM users") as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+async def get_active_subscribers_count() -> int:
+    """Returns count of unique users who have at least 1 active subscription."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT COUNT(DISTINCT user_id) FROM subscriptions") as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+async def get_subscriptions_breakdown() -> dict:
+    """Returns dictionary mapping target_nick to subscriber count."""
+    result = {}
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT target_nick, COUNT(*) FROM subscriptions GROUP BY target_nick") as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                result[row[0]] = row[1]
+    return result

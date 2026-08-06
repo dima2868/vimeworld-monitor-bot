@@ -1,10 +1,11 @@
 import asyncio
 import logging
+from datetime import datetime
 from aiogram import Router, F
-from aiogram.filters import Command
+from aiogram.filters import Command, or_f
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramRetryAfter, TelegramAPIError
-from config import YOUTUBERS, CREATOR
+from config import YOUTUBERS, CREATOR, ADMIN_IDS
 import checker
 import database as db
 import keyboards
@@ -50,6 +51,30 @@ async def generate_monitoring_text(user_id: int) -> str:
     )
     return text
 
+async def generate_admin_stats_text() -> str:
+    """Generates admin statistics text."""
+    total_users = await db.get_total_users_count()
+    active_subs = await db.get_active_subscribers_count()
+    breakdown = await db.get_subscriptions_breakdown()
+    
+    lol_count = breakdown.get("MrLalalashkaXXL", 0)
+    fix_count = breakdown.get("F1xPlay_", 0)
+    
+    now_str = datetime.now().strftime("%H:%M:%S")
+    
+    text = (
+        "👑 <b>Панель Администратора</b>\n\n"
+        f"📊 <b>Статистика использования бота:</b>\n\n"
+        f"👥 <b>Всего пользователей в базе:</b> <code>{total_users}</code>\n"
+        f"🔔 <b>Пользователей с активными уведомлениями:</b> <code>{active_subs}</code>\n\n"
+        f"<b>Подписки по ютуберам:</b>\n"
+        f"• 🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>): <b>{lol_count}</b> чел.\n"
+        f"• 🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>): <b>{fix_count}</b> чел.\n\n"
+        f"⏱ <b>Интервал проверки онлайна:</b> каждые <code>2 сек</code>\n"
+        f"🕒 <i>Время отчета: {now_str}</i>"
+    )
+    return text
+
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     """Handler for /start command."""
@@ -66,13 +91,13 @@ async def cmd_start(message: Message):
     try:
         await message.answer(
             welcome_text,
-            reply_markup=keyboards.get_main_keyboard(),
+            reply_markup=keyboards.get_main_keyboard(message.from_user.id),
             parse_mode="HTML",
             disable_web_page_preview=True
         )
     except TelegramRetryAfter as e:
         await asyncio.sleep(e.retry_after)
-        await message.answer(welcome_text, reply_markup=keyboards.get_main_keyboard(), parse_mode="HTML")
+        await message.answer(welcome_text, reply_markup=keyboards.get_main_keyboard(message.from_user.id), parse_mode="HTML")
 
 @router.message(F.text.contains("Лололошка"))
 async def handle_lololoshka(message: Message):
@@ -149,6 +174,36 @@ async def handle_creator(message: Message):
     except TelegramRetryAfter as e:
         await asyncio.sleep(e.retry_after)
         await message.answer(text, parse_mode="HTML")
+
+# ADMIN PANEL HANDLERS
+@router.message(Command("admin"))
+@router.message(Command("stats"))
+@router.message(F.text.contains("Админ"))
+@router.message(F.text.contains("админ"))
+async def handle_admin_panel(message: Message):
+    """Admin panel stats viewer."""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("⛔ <b>У вас нет доступа к админ-панели.</b>", parse_mode="HTML")
+        return
+        
+    text = await generate_admin_stats_text()
+    kb = keyboards.get_admin_inline_keyboard()
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+@router.callback_query(F.data == "admin_refresh_stats")
+async def cb_admin_refresh_stats(callback: CallbackQuery):
+    """Refreshes admin statistics."""
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Нет доступа", show_alert=True)
+        return
+        
+    text = await generate_admin_stats_text()
+    kb = keyboards.get_admin_inline_keyboard()
+    try:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        await callback.answer("🔄 Статистика обновлена!")
+    except TelegramAPIError:
+        await callback.answer("Статистика актуальна")
 
 # Callback handlers for monitoring inline keyboard
 @router.callback_query(F.data.startswith("toggle_"))

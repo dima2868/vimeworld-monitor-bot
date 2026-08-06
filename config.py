@@ -5,6 +5,9 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8874409890:AAF10XCIfde3cGt2qHPT5vmZwmcPSJNjV8k")
 
+# Admin User IDs
+ADMIN_IDS = [5881764740]
+
 # Target players to monitor
 YOUTUBERS = {
     "MrLalalashkaXXL": {

@@ -1,9 +1,9 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from config import YOUTUBERS, CREATOR
+from config import YOUTUBERS, CREATOR, ADMIN_IDS
 import database as db
 
-def get_main_keyboard() -> ReplyKeyboardMarkup:
-    """Returns main menu reply keyboard."""
+def get_main_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
+    """Returns main menu reply keyboard, with Admin button if user is admin."""
     keyboard = [
         [
             KeyboardButton(text="🎬 Лололошка"),
@@ -16,6 +16,11 @@ def get_main_keyboard() -> ReplyKeyboardMarkup:
             KeyboardButton(text=f"👑 Создатель ({CREATOR['name']})")
         ]
     ]
+    
+    # Show Admin Panel button if user is admin
+    if user_id and user_id in ADMIN_IDS:
+        keyboard.append([KeyboardButton(text="🛠 Админ-панель")])
+
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,
@@ -54,6 +59,15 @@ async def get_monitoring_inline_keyboard(user_id: int) -> InlineKeyboardMarkup:
                 text="🔴 Выключить всё",
                 callback_data="disable_all"
             )
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def get_admin_inline_keyboard() -> InlineKeyboardMarkup:
+    """Returns inline keyboard for Admin Panel."""
+    keyboard = [
+        [
+            InlineKeyboardButton(text="🔄 Обновить статистику", callback_data="admin_refresh_stats")
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
