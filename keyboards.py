@@ -88,10 +88,25 @@ async def get_monitoring_inline_keyboard(user_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def get_admin_inline_keyboard() -> InlineKeyboardMarkup:
-    """Returns inline keyboard for Admin Panel."""
+    """Returns inline keyboard for Admin Panel including Discord sound test buttons."""
     keyboard = [
         [
             InlineKeyboardButton(text="🔄 Обновить статистику", callback_data="admin_refresh_stats")
+        ],
+        [
+            InlineKeyboardButton(text="🔊 Тест: Среднее подземелье", callback_data="test_sound_dungeon_medium.mp3"),
+        ],
+        [
+            InlineKeyboardButton(text="🔊 Тест: Сложное подземелье", callback_data="test_sound_dungeon_hard.mp3"),
+        ],
+        [
+            InlineKeyboardButton(text="🔊 Тест: Остров Чеджу", callback_data="test_sound_jeju_raid.mp3"),
+        ],
+        [
+            InlineKeyboardButton(text="🔊 Тест: Лололошка", callback_data="test_sound_lololoshka_online.mp3"),
+        ],
+        [
+            InlineKeyboardButton(text="🔊 Тест: Фиксплей", callback_data="test_sound_fixplay_online.mp3"),
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

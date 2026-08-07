@@ -10,6 +10,7 @@ import checker
 import dungeon_utils
 import database as db
 import keyboards
+import discord_bot
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ async def generate_monitoring_text(user_id: int) -> str:
     return text
 
 async def generate_admin_stats_text() -> str:
-    """Generates admin statistics text in MSK timezone."""
+    """Generates admin statistics text in MSK timezone including Discord voice bot status."""
     total_users = await db.get_total_users_count()
     active_subs = await db.get_active_subscribers_count()
     breakdown = await db.get_subscriptions_breakdown()
@@ -81,20 +82,17 @@ async def generate_admin_stats_text() -> str:
     jeju_count = breakdown.get("dungeon_jeju", 0)
     
     now_str = get_now_msk_str()
+    discord_info = await discord_bot.get_discord_debug_info()
     
     text = (
         "👑 <b>Панель Администратора</b>\n\n"
-        f"📊 <b>Статистика использования бота:</b>\n\n"
-        f"👥 <b>Всего пользователей в базе:</b> <code>{total_users}</code>\n"
-        f"🔔 <b>Пользователей с активными уведомлениями:</b> <code>{active_subs}</code>\n\n"
-        f"<b>Подписки по категориям:</b>\n"
-        f"• 🎬 <b>Лололошка:</b> <b>{lol_count}</b> чел.\n"
-        f"• <ctrl42> <b>Фиксплей:</b> <b>{fix_count}</b> чел.\n"
-        f"• 🗡 <b>Сложное подземелье:</b> <b>{hard_count}</b> чел.\n"
-        f"• ⚔️ <b>Среднее подземелье:</b> <b>{med_count}</b> чел.\n"
-        f"• 🌋 <b>Остров Чеджу (Рейд):</b> <b>{jeju_count}</b> чел.\n\n"
-        f"⏱ <b>Интервал проверки:</b> каждые <code>2 сек</code>\n"
-        f"🕒 <i>Время отчета (МСК): {now_str}</i>"
+        f"📊 <b>Статистика бота:</b>\n"
+        f"👥 Пользователей в базе: <code>{total_users}</code> | 🔔 Активных подписчиков: <code>{active_subs}</code>\n\n"
+        f"<b>Подписки:</b>\n"
+        f"• 🎬 Лололошка: <b>{lol_count}</b> | 🎮 Фиксплей: <b>{fix_count}</b>\n"
+        f"• 🗡 Сложное: <b>{hard_count}</b> | ⚔️ Среднее: <b>{med_count}</b> | 🌋 Чеджу: <b>{jeju_count}</b>\n\n"
+        f"<b>Статус Discord Voice:</b>\n{discord_info}\n\n"
+        f"⏱ <i>Интервал проверки: 2 сек | Отчет (МСК): {now_str}</i>"
     )
     return text
 
@@ -236,6 +234,27 @@ async def cb_admin_refresh_stats(callback: CallbackQuery):
         await callback.answer("🔄 Статистика обновлена!")
     except TelegramAPIError:
         await callback.answer("Статистика актуальна")
+
+@router.callback_query(F.data.startswith("test_sound_"))
+async def cb_test_sound(callback: CallbackQuery):
+    """Triggers Discord voice sound playback test from admin panel."""
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("⛔ Нет доступа", show_alert=True)
+        return
+        
+    sound_filename = callback.data.replace("test_sound_", "")
+    await callback.answer("⏳ Запуск звукового теста Discord...")
+    
+    success, detail_msg = await discord_bot.play_voice_sound(sound_filename)
+    
+    admin_text = await generate_admin_stats_text()
+    admin_text += f"\n\n<b>Результат теста звука ({sound_filename}):</b>\n{detail_msg}"
+    
+    kb = keyboards.get_admin_inline_keyboard()
+    try:
+        await callback.message.edit_text(admin_text, reply_markup=kb, parse_mode="HTML")
+    except TelegramAPIError:
+        pass
 
 # Callback handlers for monitoring inline keyboard
 ALL_KEYS = ["MrLalalashkaXXL", "F1xPlay_", "dungeon_hard", "dungeon_medium", "dungeon_jeju"]

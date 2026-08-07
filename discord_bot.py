@@ -29,12 +29,17 @@ except ImportError:
     discord_client = None
 
 
+def is_discord_ready() -> bool:
+    """Checks if Discord bot is initialized and logged in."""
+    return bool(discord_client and discord_client.is_ready())
+
+
 async def find_active_human_voice_channel():
     """
     Finds a voice channel that has at least 1 non-bot human member inside.
     Checks DISCORD_VOICE_CHANNEL_ID first if configured, or searches all guilds.
     """
-    if not discord_client or not discord_client.is_ready():
+    if not is_discord_ready():
         return None
         
     # Check configured channel ID first if provided
@@ -60,35 +65,67 @@ async def find_active_human_voice_channel():
     return None
 
 
-async def play_voice_sound(sound_filename: str):
+async def get_discord_debug_info() -> str:
+    """Returns human-readable status of Discord bot connection."""
+    if not DISCORD_BOT_TOKEN:
+        return "❌ <b>Токен DISCORD_BOT_TOKEN не указан</b> в переменных окружения."
+        
+    if not is_discord_ready():
+        return "⏳ <b>Discord-бот в процессе подключения...</b> Попробуйте через 5 секунд."
+        
+    guilds = discord_client.guilds
+    if not guilds:
+        return (
+            "⚠️ <b>Бот подключен к Discord, но НЕ добавлен ни на один сервер!</b>\n\n"
+            "Добавьте бота на ваш Discord-сервер по ссылке авторизации."
+        )
+        
+    text = f"✅ <b>Discord-бот активен:</b> <code>{discord_client.user}</code>\n"
+    text += f"🏠 <b>Серверы ({len(guilds)}):</b> " + ", ".join([g.name for g in guilds]) + "\n\n"
+    
+    active_vc = await find_active_human_voice_channel()
+    if active_vc:
+        humans = [m.display_name for m in active_vc.members if not m.bot]
+        text += f"🔊 <b>Найден активный войс:</b> {active_vc.name} (Людей: {len(humans)} - {', '.join(humans)})\n"
+    else:
+        text += "🔇 <b>Никого нет в голосовых каналах.</b> Зайдите в любой голосовой канал на сервере для теста!\n"
+        
+    return text
+
+
+async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
     """
     Plays an MP3/OGG sound file in the active Discord Voice Channel ONLY IF at least 1 human is inside.
-    Sounds are stored in the 'sounds/' directory.
+    Returns (success: bool, detail_message: str).
     """
     global voice_client
-    if not discord_client or not DISCORD_BOT_TOKEN:
-        return
+    if not DISCORD_BOT_TOKEN:
+        return False, "❌ Токен DISCORD_BOT_TOKEN не установлен в переменных окружения!"
+
+    if not is_discord_ready():
+        return False, "⏳ Discord бот еще не подключился к сетям Discord. Подождите пару секунд."
 
     # Check if any voice channel has active human members
     target_vc = await find_active_human_voice_channel()
     if not target_vc:
-        logger.info(f"Skipping Discord voice alert '{sound_filename}': No human users inside any voice channel.")
-        # Disconnect if currently connected to an empty channel
+        msg = "🔇 Ни один человек не найден ни в одном голосовом канале! Зайдите в любой войс-канал на сервере и повторите тест."
+        logger.info(f"Skipping Discord voice alert '{sound_filename}': {msg}")
         if voice_client and voice_client.is_connected():
             try:
                 await voice_client.disconnect()
             except Exception:
                 pass
             voice_client = None
-        return
+        return False, msg
         
     sound_path = os.path.join("sounds", sound_filename)
     if not os.path.exists(sound_path):
         sound_path = sound_filename # Fallback to root dir
         
     if not os.path.exists(sound_path):
-        logger.warning(f"Audio file '{sound_filename}' not found in sounds/ or root directory.")
-        return
+        msg = f"❌ Файл звука '{sound_filename}' не найден на сервере!"
+        logger.warning(msg)
+        return False, msg
 
     try:
         # Connect or move to the channel with human members
@@ -108,19 +145,11 @@ async def play_voice_sound(sound_filename: str):
             voice_client.play(audio_source)
             logger.info(f"Playing Discord voice alert: {sound_filename} in channel '{target_vc.name}'")
             
-            # Wait for audio playback to finish
-            while voice_client.is_playing():
-                await asyncio.sleep(0.5)
-                
-            # Disconnect after playing if no humans remain
-            await asyncio.sleep(1)
-            human_members = [m for m in target_vc.members if not m.bot]
-            if len(human_members) == 0:
-                await voice_client.disconnect()
-                voice_client = None
-                logger.info("Disconnected from Discord voice channel as no humans remain.")
+            return True, f"🔊 Проигрываю звук <b>{sound_filename}</b> в канале <b>{target_vc.name}</b>!"
     except Exception as e:
-        logger.error(f"Failed to play Discord voice sound '{sound_filename}': {e}")
+        err_msg = f"❌ Ошибка воспроизведения звука: {e}"
+        logger.error(err_msg)
+        return False, err_msg
 
 
 async def start_discord_bot():
