@@ -20,6 +20,8 @@ try:
     intents = discord.Intents.default()
     intents.voice_states = True
     intents.guilds = True
+    intents.messages = True
+    intents.message_content = True
     
     discord_client = commands.Bot(command_prefix="!", intents=intents)
     tree = discord_client.tree
@@ -32,6 +34,27 @@ try:
             logger.info(f"Synced {len(synced)} Discord slash commands.")
         except Exception as e:
             logger.error(f"Error syncing Discord slash commands: {e}")
+
+    @discord_client.event
+    async def on_message(message: discord.Message):
+        if message.author.bot:
+            return
+            
+        content = message.content.strip().lower()
+        if content in ("/admin", "!admin", "admin"):
+            if message.author.id not in DISCORD_ADMIN_IDS:
+                await message.channel.send("⛔ **У вас нет доступа к этой админ-панели.**", delete_after=5)
+                return
+                
+            try:
+                await message.delete()
+            except Exception:
+                pass
+                
+            settings = await db.get_all_discord_settings()
+            embed = generate_admin_embed(settings)
+            view = DiscordAdminView(admin_id=message.author.id, settings=settings)
+            await message.channel.send(embed=embed, view=view)
 
 except ImportError:
     logger.warning("discord.py is not installed. Discord voice notifications will be disabled.")
