@@ -24,7 +24,7 @@ try:
     intents.messages = True
     intents.message_content = True
     
-    discord_client = commands.Bot(command_prefix="!", intents=intents)
+    discord_client = commands.Bot(command_prefix=["!", "/"], intents=intents)
     tree = discord_client.tree
 
     @discord_client.event
@@ -53,7 +53,7 @@ try:
         content = message.content.strip()
         lower_content = content.lower()
         
-        # 1. Admin Panel text command
+        # 1. Admin Panel text command (Restricted to Admin ID)
         if lower_content in ("/admin", "!admin", "admin"):
             if message.author.id not in DISCORD_ADMIN_IDS:
                 await message.channel.send("⛔ **У вас нет доступа к этой админ-панели.**", delete_after=5)
@@ -70,8 +70,8 @@ try:
             await message.channel.send(embed=embed, view=view)
             return
 
-        # 2. Player Profile text command (!player nick or /player nick)
-        if lower_content.startswith("!player ") or lower_content.startswith("/player "):
+        # 2. Player Profile text command - OPEN TO ALL USERS (!player nick or /player nick or player nick)
+        if lower_content.startswith("!player") or lower_content.startswith("/player") or lower_content.startswith("!profile") or lower_content.startswith("/profile") or lower_content.startswith("player ") or lower_content.startswith("профиль "):
             parts = content.split(maxsplit=1)
             if len(parts) > 1:
                 nick = parts[1].strip()
@@ -81,10 +81,12 @@ try:
                     return
                 embed = build_player_embed(profile)
                 await message.channel.send(embed=embed)
+            else:
+                await message.channel.send("🔍 **Укажите никнейм игрока!** Пример: `!player dima_286812312`")
             return
 
-        # 3. Player Comparison text command (!compare nick1 nick2 or /compare nick1 nick2)
-        if lower_content.startswith("!compare ") or lower_content.startswith("/compare "):
+        # 3. Player Comparison text command - OPEN TO ALL USERS (!compare nick1 nick2 or /compare nick1 nick2)
+        if lower_content.startswith("!compare") or lower_content.startswith("/compare") or lower_content.startswith("!сравнить") or lower_content.startswith("/сравнить") or lower_content.startswith("сравнить "):
             parts = content.split()
             if len(parts) >= 3:
                 nick1, nick2 = parts[1].strip(), parts[2].strip()
@@ -101,6 +103,8 @@ try:
 
                 embed = build_compare_embed(p1, p2)
                 await message.channel.send(embed=embed)
+            else:
+                await message.channel.send("⚔️ **Укажите 2 никнейма для сравнения!** Пример: `!compare dima_286812312 MrLalalashkaXXL`")
             return
 
 except ImportError:
@@ -326,11 +330,11 @@ def generate_admin_embed(settings: dict) -> discord.Embed:
     return embed
 
 
-# Register Discord Slash Commands
+# Register Discord Slash Commands (ALL USERS ALLOWED FOR /player AND /compare)
 if tree:
     @tree.command(name="admin", description="Админ-панель настройки голосовых уведомлений (только для администратора)")
     async def slash_admin(interaction: discord.Interaction):
-        # Strict Admin User ID check
+        # Strict Admin User ID check ONLY for /admin
         if interaction.user.id not in DISCORD_ADMIN_IDS:
             await interaction.response.send_message("⛔ **У вас нет доступа к этой админ-панели.**", ephemeral=True)
             return
