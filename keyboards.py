@@ -10,7 +10,8 @@ def get_main_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
             KeyboardButton(text="🎮 Фиксплей")
         ],
         [
-            KeyboardButton(text="🗡 Подземелья и Рейды")
+            KeyboardButton(text="🗡 Подземелья и Рейды"),
+            KeyboardButton(text="🔍 Профиль игрока")
         ],
         [
             KeyboardButton(text="🔔 Настройка уведомлений")

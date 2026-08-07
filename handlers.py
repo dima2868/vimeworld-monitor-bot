@@ -38,6 +38,76 @@ def format_status_msg(info: dict, custom_title: str = None) -> str:
     text += f"\n🔗 <a href='{info['url']}'>Открыть профиль на VimeWorld</a>"
     return text
 
+def format_player_profile_card(info: dict) -> str:
+    """Formats rich player profile card with Solo Leveling stats."""
+    nick = info["nickname"]
+    status = info["status_display"]
+    rank = info.get("rank", "USER")
+    lvl = info.get("level", 0)
+    pct = info.get("level_pct", 0)
+    hrs = info.get("played_hours", 0)
+    guild = info.get("guild_name")
+    guild_lvl = info.get("guild_level")
+    
+    text = f"👤 <b>Статистика игрока {nick}</b> (VimeWorld)\n\n"
+    text += f"Текущий статус: <b>{status}</b>\n"
+    text += f"Ранг: <b>{rank}</b> | Уровень: <b>{lvl} ({pct}%)</b>\n"
+    text += f"Наиграно в игре: <b>{hrs} ч</b>\n"
+    if guild:
+        text += f"Гильдия: <b>{guild}</b> (Уровень {guild_lvl})\n"
+        
+    text += "\n🗡 <b>Статистика Solo Leveling:</b>\n"
+    text += f"• 🔄 <b>Перерождений:</b> <code>{info['sl_rebirth']}</code>\n"
+    text += f"• ⚡ <b>Сила удара:</b> <code>{info['sl_damage_formatted']}</code>\n"
+    text += f"• 💰 <b>Золото:</b> <code>{info['sl_gold_formatted']}</code>\n"
+    text += f"• 🎯 <b>Очки улучшений:</b> <code>{info['sl_upgrade_points']}</code>\n\n"
+    text += f"🔗 <a href='{info['url']}'>Открыть профиль на VimeWorld</a>"
+    return text
+
+def format_player_comparison_card(p1: dict, p2: dict) -> str:
+    """Formats comparison card between two players."""
+    nick1, nick2 = p1["nickname"], p2["nickname"]
+    
+    dmg1, dmg2 = p1["sl_damage_raw"], p2["sl_damage_raw"]
+    reb1, reb2 = p1["sl_rebirth"], p2["sl_rebirth"]
+    lvl1, lvl2 = p1.get("level", 0), p2.get("level", 0)
+    hrs1, hrs2 = p1.get("played_hours", 0), p2.get("played_hours", 0)
+    
+    icon_dmg1 = " 🏆" if dmg1 > dmg2 else (" 🤝" if dmg1 == dmg2 else "")
+    icon_dmg2 = " 🏆" if dmg2 > dmg1 else (" 🤝" if dmg1 == dmg2 else "")
+
+    icon_reb1 = " 🏆" if reb1 > reb2 else (" 🤝" if reb1 == reb2 else "")
+    icon_reb2 = " 🏆" if reb2 > reb1 else (" 🤝" if reb1 == reb2 else "")
+
+    icon_lvl1 = " 🏆" if lvl1 > lvl2 else (" 🤝" if lvl1 == lvl2 else "")
+    icon_lvl2 = " 🏆" if lvl2 > lvl1 else (" 🤝" if lvl1 == lvl2 else "")
+
+    if dmg1 > dmg2:
+        winner = f"<b>{nick1}</b> (+{(dmg1/dmg2 if dmg2>0 else 1):.1f}x от силы соперника)"
+    elif dmg2 > dmg1:
+        winner = f"<b>{nick2}</b> (+{(dmg2/dmg1 if dmg1>0 else 1):.1f}x от силы соперника)"
+    else:
+        winner = "<b>Ничья!</b>"
+
+    text = (
+        f"⚔️ <b>Сравнение игроков Solo Leveling</b> ⚔️\n\n"
+        f"👤 <b>{nick1}</b> <i>VS</i> 👤 <b>{nick2}</b>\n\n"
+        f"⚡ <b>Сила удара:</b>\n"
+        f"• {nick1}: <code>{p1['sl_damage_formatted']}</code>{icon_dmg1}\n"
+        f"• {nick2}: <code>{p2['sl_damage_formatted']}</code>{icon_dmg2}\n\n"
+        f"🔄 <b>Перерождения:</b>\n"
+        f"• {nick1}: <b>{p1['sl_rebirth']}</b>{icon_reb1}\n"
+        f"• {nick2}: <b>{p2['sl_rebirth']}</b>{icon_reb2}\n\n"
+        f"📊 <b>Уровень VimeWorld:</b>\n"
+        f"• {nick1}: <b>{p1['level']} ур.</b>{icon_lvl1}\n"
+        f"• {nick2}: <b>{p2['level']} ур.</b>{icon_lvl2}\n\n"
+        f"⏱ <b>Наигранное время:</b>\n"
+        f"• {nick1}: <b>{hrs1} ч</b>\n"
+        f"• {nick2}: <b>{hrs2} ч</b>\n\n"
+        f"👑 <b>Лидер по силе удара:</b> {winner}"
+    )
+    return text
+
 async def generate_monitoring_text(user_id: int) -> str:
     """Generates clear monitoring status text for user."""
     subs = await db.get_user_subscriptions(user_id)
@@ -103,12 +173,11 @@ async def cmd_start(message: Message):
     
     welcome_text = (
         "👋 <b>Привет! Я бот-мониторинг VimeWorld (Solo Leveling)!</b>\n\n"
-        "Я отслеживаю статус ютуберов и расписание подземелий с автоматическими уведомлениями:\n"
-        "• 🎬 <b>Лололошка</b> (<code>MrLalalashkaXXL</code>)\n"
-        "• 🎮 <b>Фиксплей</b> (<code>F1xPlay_</code>)\n"
-        "• 🗡 <b>Сложное подземелье</b> (каждые :10 и :40 мин)\n"
-        "• ⚔️ <b>Среднее подземелье</b> (каждые :15 и :45 мин)\n"
-        "• 🌋 <b>Остров Чеджу (Рейд)</b> (в 18:00 МСК)\n\n"
+        "Я отслеживаю статус ютуберов, подземелья и статистику игроков:\n"
+        "• 🔍 <b>Поиск игрока:</b> `/player ник`\n"
+        "• ⚔️ <b>Сравнение игроков:</b> `/compare ник1 ник2`\n"
+        "• 🎬 <b>Лололошка</b> и 🎮 <b>Фиксплей</b>\n"
+        "• 🗡 <b>Подземелья и Рейды</b>\n\n"
         "Выбери нужный раздел на клавиатуре ниже!"
     )
     
@@ -122,6 +191,63 @@ async def cmd_start(message: Message):
     except TelegramRetryAfter as e:
         await asyncio.sleep(e.retry_after)
         await message.answer(welcome_text, reply_markup=keyboards.get_main_keyboard(message.from_user.id), parse_mode="HTML")
+
+@router.message(or_f(Command("player"), Command("profile")))
+async def cmd_player(message: Message):
+    """Handler for /player <nickname> command."""
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("🔍 <b>Укажите никнейм игрока!</b>\n\nПример использования: <code>/player dima_286812312</code>", parse_mode="HTML")
+        return
+        
+    nick = args[1].strip()
+    profile = await checker.fetch_full_player_profile(nick)
+    
+    if not profile.get("exists"):
+        await message.answer(f"❌ Игрок с ником <code>{nick}</code> не найден на VimeWorld!", parse_mode="HTML")
+        return
+        
+    text = format_player_profile_card(profile)
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🌐 Профиль на VimeWorld", url=profile['url'])
+    ]])
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+@router.message(Command("compare"))
+async def cmd_compare(message: Message):
+    """Handler for /compare <nick1> <nick2> command."""
+    parts = message.text.split()
+    if len(parts) < 3:
+        await message.answer("⚔️ <b>Укажите никнеймы двух игроков для сравнения!</b>\n\nПример использования: <code>/compare dima_286812312 MrLalalashkaXXL</code>", parse_mode="HTML")
+        return
+        
+    nick1, nick2 = parts[1].strip(), parts[2].strip()
+    
+    p1_task = checker.fetch_full_player_profile(nick1)
+    p2_task = checker.fetch_full_player_profile(nick2)
+    p1, p2 = await asyncio.gather(p1_task, p2_task)
+    
+    if not p1.get("exists"):
+        await message.answer(f"❌ Игрок <code>{nick1}</code> не найден на VimeWorld!", parse_mode="HTML")
+        return
+    if not p2.get("exists"):
+        await message.answer(f"❌ Игрок <code>{nick2}</code> не найден на VimeWorld!", parse_mode="HTML")
+        return
+
+    text = format_player_comparison_card(p1, p2)
+    await message.answer(text, parse_mode="HTML")
+
+@router.message(F.text.contains("Профиль игрока"))
+async def handle_profile_button(message: Message):
+    """Guide for player search button."""
+    text = (
+        "🔍 <b>Поиск и сравнение профилей VimeWorld:</b>\n\n"
+        "• Для просмотра профиля игрока отправьте команду:\n"
+        "  <code>/player никнейм</code> (например, <code>/player dima_286812312</code>)\n\n"
+        "• Для сравнения двух игроков отправьте команду:\n"
+        "  <code>/compare ник1 ник2</code> (например, <code>/compare dima_286812312 MrLalalashkaXXL</code>)"
+    )
+    await message.answer(text, parse_mode="HTML")
 
 @router.message(F.text.contains("Лололошка"))
 async def handle_lololoshka(message: Message):

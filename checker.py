@@ -1,102 +1,178 @@
+import math
 import aiohttp
-import re
-from bs4 import BeautifulSoup
 import logging
+from config import YOUTUBERS, CREATOR
 
 logger = logging.getLogger(__name__)
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-}
+PROFILE_API_URL = "https://api.vimeworld.com/user/name/{nickname}"
+SESSION_API_URL = "https://api.vimeworld.com/user/name/{nickname}/session"
+STATS_API_URL = "https://api.vimeworld.com/user/name/{nickname}/stats"
 
-_session = None
+SUFFIXES = [
+    "", "K", "M", "B", "T", "QA", "QI", "SX", "SP", "OC", "NO", "DC",
+    "UDC", "DDC", "TDC", "QAD", "QID", "SXD", "SPD", "OCD", "NOD", "VGN",
+    "UVG", "DVG", "TVG", "QAV", "QIV", "SXV", "SPV", "OCV", "NOV", "CENT"
+]
 
-async def get_session() -> aiohttp.ClientSession:
-    global _session
-    if _session is None or _session.closed:
-        _session = aiohttp.ClientSession(headers=HEADERS)
-    return _session
+def format_big_number(val) -> str:
+    """Formats large Solo Leveling numbers into clean VimeWorld style (e.g. 82.5DVG, 13.9OCD)."""
+    if not val or val == 0:
+        return "0"
+    try:
+        val = float(val)
+        if val < 1000:
+            return f"{val:.0f}"
+        
+        exp = int(math.log10(val) // 3)
+        if exp < len(SUFFIXES):
+            scaled = val / (10 ** (exp * 3))
+            return f"{scaled:.1f}{SUFFIXES[exp]}"
+        return f"{val:.2e}"
+    except Exception:
+        return str(val)
 
 async def fetch_player_status(nickname: str) -> dict:
     """
-    Fetches real-time online status and details for a VimeWorld player.
-    Classifies state:
-    - OFFLINE: Not connected
-    - LOBBY: Online but not in a specific game
-    - SOLOLEVELING: Online playing Solo Leveling
-    - OTHER_GAME: Online playing another mode
+    Fetches real-time online status and session details for a nickname.
+    States: OFFLINE, LOBBY, SOLOLEVELING, OTHER_GAME
     """
-    api_url = f"https://api.vimeworld.com/user/name/{nickname}/session"
-    web_url = f"https://vimeworld.com/player/{nickname}"
-    
-    result = {
+    default_result = {
         "nickname": nickname,
         "is_online": False,
         "state": "OFFLINE",
+        "game_mode": "Offline",
         "status_display": "🔴 Не в сети",
-        "game": None,
         "level": None,
         "rank": None,
-        "avatar_url": f"https://skin.vimeworld.com/body/{nickname}/360.png",
-        "url": web_url
+        "url": f"https://vimeworld.com/player/{nickname}"
     }
 
-    session = await get_session()
-    
-    # Try VimeWorld Session API
-    try:
-        async with session.get(api_url, timeout=5) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                if isinstance(data, dict):
-                    user_data = data.get("user", {})
-                    online_info = data.get("online", {})
-                    
-                    is_online = bool(online_info.get("value", False))
-                    game_mode = online_info.get("game")
-                    
-                    result["is_online"] = is_online
-                    result["game"] = game_mode
-                    result["level"] = user_data.get("level")
-                    result["rank"] = user_data.get("rank")
-                    
-                    if not is_online:
-                        result["state"] = "OFFLINE"
-                        result["status_display"] = "🔴 Не в сети"
-                    elif game_mode and "SOLOLEVELING" in str(game_mode).upper():
-                        result["state"] = "SOLOLEVELING"
-                        result["status_display"] = "🟢 На Solo Leveling"
-                    elif game_mode:
-                        result["state"] = "OTHER_GAME"
-                        result["status_display"] = f"🔵 В игре ({game_mode})"
-                    else:
-                        result["state"] = "LOBBY"
-                        result["status_display"] = "🟡 В лобби"
-                        
-                    return result
-    except Exception as e:
-        logger.warning(f"VimeWorld Session API request failed for {nickname}: {e}. Falling back to web scraping.")
+    async with aiohttp.ClientSession() as session:
+        try:
+            # 1. Fetch real-time session status
+            async with session.get(SESSION_API_URL.format(nickname=nickname), timeout=5) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    online_data = data.get("online", {})
+                    is_online = online_data.get("value", False)
+                    game = online_data.get("game", "")
 
-    # Fallback to Web Scraping
-    try:
-        async with session.get(web_url, timeout=5) as resp:
-            if resp.status == 200:
-                html = await resp.text()
-                
-                if "vw-7ya4b" in html or "Онлайн" in html:
-                    result["is_online"] = True
-                    result["state"] = "LOBBY"
-                    result["status_display"] = "🟢 Онлайн"
-                else:
-                    result["is_online"] = False
-                    result["state"] = "OFFLINE"
-                    result["status_display"] = "🔴 Не в сети"
+                    default_result["is_online"] = is_online
+                    if is_online:
+                        if game == "SOLOLEVELING":
+                            default_result["state"] = "SOLOLEVELING"
+                            default_result["status_display"] = "🟢 На Solo Leveling"
+                        elif game == "LOBBY" or not game:
+                            default_result["state"] = "LOBBY"
+                            default_result["status_display"] = "🟡 В лобби VimeWorld"
+                        else:
+                            default_result["state"] = "OTHER_GAME"
+                            default_result["status_display"] = f"🟢 Играет в {game}"
+                    else:
+                        default_result["state"] = "OFFLINE"
+                        default_result["status_display"] = "🔴 Не в сети"
+        except Exception as e:
+            logger.warning(f"Error fetching session status for {nickname}: {e}")
+
+        try:
+            # 2. Fetch base profile
+            async with session.get(PROFILE_API_URL.format(nickname=nickname), timeout=5) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if isinstance(data, list) and len(data) > 0:
+                        user_info = data[0]
+                        default_result["level"] = user_info.get("level")
+                        default_result["rank"] = user_info.get("rank")
+        except Exception as e:
+            logger.warning(f"Error fetching profile for {nickname}: {e}")
+
+    return default_result
+
+async def fetch_full_player_profile(nickname: str) -> dict:
+    """
+    Fetches comprehensive player profile including VimeWorld stats and Solo Leveling data.
+    """
+    status_info = await fetch_player_status(nickname)
+    
+    result = {
+        **status_info,
+        "exists": False,
+        "played_hours": 0,
+        "level_pct": 0,
+        "prime": False,
+        "guild_name": None,
+        "guild_level": None,
+        "skin_url": f"https://skin.vimeworld.com/body/{nickname}/360.png",
+        "head_url": f"https://skin.vimeworld.com/head/{nickname}/64.png",
+        # Solo Leveling stats
+        "sl_rebirth": 0,
+        "sl_damage_raw": 0,
+        "sl_damage_formatted": "0",
+        "sl_gold_raw": 0,
+        "sl_gold_formatted": "0",
+        "sl_upgrade_points": 0,
+    }
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            # 1. Base profile
+            async with session.get(PROFILE_API_URL.format(nickname=nickname), timeout=5) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if isinstance(data, list) and len(data) > 0:
+                        u = data[0]
+                        result["exists"] = True
+                        result["nickname"] = u.get("username", nickname)
+                        result["level"] = u.get("level", 0)
+                        result["level_pct"] = int((u.get("levelPercentage", 0) or 0) * 100)
+                        result["rank"] = u.get("rank", "USER")
+                        result["prime"] = u.get("prime", False)
+                        
+                        played_secs = u.get("playedSeconds", 0) or 0
+                        result["played_hours"] = played_secs // 3600
+                        
+                        guild = u.get("guild")
+                        if guild:
+                            result["guild_name"] = guild.get("name")
+                            result["guild_level"] = guild.get("level")
+        except Exception as e:
+            logger.warning(f"Error fetching full profile for {nickname}: {e}")
+
+        # 2. Stats API for Solo Leveling
+        try:
+            async with session.get(STATS_API_URL.format(nickname=nickname), timeout=5) as resp:
+                if resp.status == 200:
+                    stats_json = await resp.json()
+                    stats = stats_json.get("stats", {})
+                    
+                    # Search across all Solo Leveling seasons keys (SOLOLEVELING, SOLOLEVELING2...8)
+                    best_damage = 0
+                    best_rebirth = 0
+                    best_gold = 0
+                    best_upgrades = 0
+                    
+                    for k, v in stats.items():
+                        if "SOLOLEVELING" in k and isinstance(v, dict):
+                            g = v.get("global", {})
+                            dmg = g.get("damage_power", 0) or 0
+                            reb = g.get("rebirth", 0) or 0
+                            gold = g.get("gold", 0) or 0
+                            upg = g.get("upgrade_points", 0) or 0
                             
-                lvl_match = re.search(r'(\d+)\s*уровень', html, re.IGNORECASE)
-                if lvl_match:
-                    result["level"] = lvl_match.group(1)
-    except Exception as e:
-        logger.error(f"Error scraping VimeWorld webpage for {nickname}: {e}")
+                            if dmg > best_damage or reb > best_rebirth:
+                                best_damage = dmg
+                                best_rebirth = reb
+                                best_gold = gold
+                                best_upgrades = upg
+
+                    result["sl_rebirth"] = best_rebirth
+                    result["sl_damage_raw"] = best_damage
+                    result["sl_damage_formatted"] = format_big_number(best_damage)
+                    result["sl_gold_raw"] = best_gold
+                    result["sl_gold_formatted"] = format_big_number(best_gold)
+                    result["sl_upgrade_points"] = best_upgrades
+        except Exception as e:
+            logger.warning(f"Error fetching stats for {nickname}: {e}")
 
     return result

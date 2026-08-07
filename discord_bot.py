@@ -3,6 +3,7 @@ import asyncio
 import logging
 from config import DISCORD_BOT_TOKEN, DISCORD_ADMIN_IDS
 import database as db
+import checker
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,7 @@ def generate_admin_embed(settings: dict) -> discord.Embed:
     return embed
 
 
-# Register Discord Slash Command /admin
+# Register Discord Slash Commands
 if tree:
     @tree.command(name="admin", description="Админ-панель настройки голосовых уведомлений (только для администратора)")
     async def slash_admin(interaction: discord.Interaction):
@@ -219,6 +220,97 @@ if tree:
         embed = generate_admin_embed(settings)
         view = DiscordAdminView(admin_id=interaction.user.id, settings=settings)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @tree.command(name="player", description="Посмотреть статистику и профиль Solo Leveling игрока VimeWorld")
+    @app_commands.describe(nickname="Никнейм игрока на VimeWorld")
+    async def slash_player(interaction: discord.Interaction, nickname: str):
+        await interaction.response.defer()
+        profile = await checker.fetch_full_player_profile(nickname)
+        if not profile.get("exists"):
+            await interaction.followup.send(f"❌ Игрок `{nickname}` не найден на VimeWorld!")
+            return
+
+        embed = discord.Embed(
+            title=f"👤 Профиль игрока {profile['nickname']}",
+            url=profile['url'],
+            color=0x00FF33 if profile['is_online'] else 0x888888
+        )
+        embed.set_thumbnail(url=profile['head_url'])
+        embed.add_field(name="Текущий статус", value=profile['status_display'], inline=True)
+        embed.add_field(name="Ранг", value=profile.get('rank', 'USER'), inline=True)
+        embed.add_field(name="Уровень", value=f"{profile['level']} ({profile['level_pct']}%)", inline=True)
+        embed.add_field(name="Наиграно времени", value=f"{profile['played_hours']} ч", inline=True)
+        if profile.get('guild_name'):
+            embed.add_field(name="Гильдия", value=f"{profile['guild_name']} (Ув. {profile['guild_level']})", inline=True)
+
+        embed.add_field(
+            name="🗡 Solo Leveling Статистика",
+            value=(
+                f"🔄 **Перерождений:** `{profile['sl_rebirth']}`\n"
+                f"⚡ **Сила удара:** `{profile['sl_damage_formatted']}`\n"
+                f"💰 **Золото:** `{profile['sl_gold_formatted']}`\n"
+                f"🎯 **Очки улучшений:** `{profile['sl_upgrade_points']}`"
+            ),
+            inline=False
+        )
+        await interaction.followup.send(embed=embed)
+
+    @tree.command(name="compare", description="Сравнить статистику двух игроков Solo Leveling на VimeWorld")
+    @app_commands.describe(player1="Никнейм первого игрока", player2="Никнейм второго игрока")
+    async def slash_compare(interaction: discord.Interaction, player1: str, player2: str):
+        await interaction.response.defer()
+        p1_task = checker.fetch_full_player_profile(player1)
+        p2_task = checker.fetch_full_player_profile(player2)
+        p1, p2 = await asyncio.gather(p1_task, p2_task)
+
+        if not p1.get("exists"):
+            await interaction.followup.send(f"❌ Игрок `{player1}` не найден на VimeWorld!")
+            return
+        if not p2.get("exists"):
+            await interaction.followup.send(f"❌ Игрок `{player2}` не найден на VimeWorld!")
+            return
+
+        nick1, nick2 = p1["nickname"], p2["nickname"]
+        dmg1, dmg2 = p1["sl_damage_raw"], p2["sl_damage_raw"]
+        reb1, reb2 = p1["sl_rebirth"], p2["sl_rebirth"]
+        lvl1, lvl2 = p1.get("level", 0), p2.get("level", 0)
+
+        icon_dmg1 = " 🏆" if dmg1 > dmg2 else (" 🤝" if dmg1 == dmg2 else "")
+        icon_dmg2 = " 🏆" if dmg2 > dmg1 else (" 🤝" if dmg1 == dmg2 else "")
+
+        icon_reb1 = " 🏆" if reb1 > reb2 else (" 🤝" if reb1 == reb2 else "")
+        icon_reb2 = " 🏆" if reb2 > reb1 else (" 🤝" if reb1 == reb2 else "")
+
+        icon_lvl1 = " 🏆" if lvl1 > lvl2 else (" 🤝" if lvl1 == lvl2 else "")
+        icon_lvl2 = " 🏆" if lvl2 > lvl1 else (" 🤝" if lvl1 == lvl2 else "")
+
+        winner = nick1 if dmg1 > dmg2 else (nick2 if dmg2 > dmg1 else "Ничья")
+
+        embed = discord.Embed(
+            title=f"⚔️ Сравнение: {nick1} vs {nick2}",
+            color=0x5865F2
+        )
+        embed.add_field(
+            name="⚡ Сила удара",
+            value=f"• **{nick1}:** `{p1['sl_damage_formatted']}`{icon_dmg1}\n• **{nick2}:** `{p2['sl_damage_formatted']}`{icon_dmg2}",
+            inline=False
+        )
+        embed.add_field(
+            name="🔄 Перерождения",
+            value=f"• **{nick1}:** `{p1['sl_rebirth']}`{icon_reb1}\n• **{nick2}:** `{p2['sl_rebirth']}`{icon_reb2}",
+            inline=False
+        )
+        embed.add_field(
+            name="📊 Уровень VimeWorld",
+            value=f"• **{nick1}:** `{p1['level']} ур.`{icon_lvl1}\n• **{nick2}:** `{p2['level']} ур.`{icon_lvl2}",
+            inline=False
+        )
+        embed.add_field(
+            name="🏆 Лидер по силе удара",
+            value=f"**{winner}**",
+            inline=False
+        )
+        await interaction.followup.send(embed=embed)
 
 
 async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
