@@ -96,6 +96,7 @@ async def get_discord_debug_info() -> str:
 async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
     """
     Plays an MP3/OGG sound file in the active Discord Voice Channel ONLY IF at least 1 human is inside.
+    Automatically disconnects from the voice channel immediately after playback completes.
     Returns (success: bool, detail_message: str).
     """
     global voice_client
@@ -145,7 +146,24 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
             voice_client.play(audio_source)
             logger.info(f"Playing Discord voice alert: {sound_filename} in channel '{target_vc.name}'")
             
-            return True, f"🔊 Проигрываю звук <b>{sound_filename}</b> в канале <b>{target_vc.name}</b>!"
+            # Background task to disconnect cleanly as soon as audio finishes playing
+            async def disconnect_after_playback():
+                global voice_client
+                try:
+                    while voice_client and voice_client.is_playing():
+                        await asyncio.sleep(0.5)
+                    await asyncio.sleep(1)
+                    if voice_client and voice_client.is_connected():
+                        await voice_client.disconnect()
+                        voice_client = None
+                        logger.info(f"Disconnected from Discord voice channel after playing {sound_filename}.")
+                except Exception as ex:
+                    logger.warning(f"Error disconnecting after playback: {ex}")
+                    voice_client = None
+
+            asyncio.create_task(disconnect_after_playback())
+            
+            return True, f"🔊 Проигрываю звук <b>{sound_filename}</b> в канале <b>{target_vc.name}</b> (выйду сразу после завершения)!"
     except Exception as e:
         err_msg = f"❌ Ошибка воспроизведения звука: {e}"
         logger.error(err_msg)
