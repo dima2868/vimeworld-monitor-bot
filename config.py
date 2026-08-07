@@ -30,14 +30,14 @@ YOUTUBERS = {
     }
 }
 
-# Dungeon & Raid definitions
+# Dungeon & Raid definitions (Pre-alerts sent 1 minute before start)
 DUNGEONS = {
     "dungeon_hard": {
         "name": "Сложное подземелье",
         "icon": "🗡",
         "schedule_desc": "каждые :10 и :40 минут",
         "minutes": [10, 40],
-        "alert_minutes": [8, 38],
+        "alert_minutes": [9, 39], # 1 minute before :10 and :40
         "sound": "dungeon_hard.mp3"
     },
     "dungeon_medium": {
@@ -45,14 +45,14 @@ DUNGEONS = {
         "icon": "⚔️",
         "schedule_desc": "каждые :15 и :45 минут",
         "minutes": [15, 45],
-        "alert_minutes": [13, 43],
+        "alert_minutes": [14, 44], # 1 minute before :15 and :45
         "sound": "dungeon_medium.mp3"
     },
     "dungeon_jeju": {
         "name": "Остров Чеджу (Рейд)",
         "icon": "🌋",
         "schedule_desc": "в 18:00 МСК",
-        "alert_time": (17, 58),
+        "alert_time": (17, 59), # 17:59 MSK (1 minute before 18:00)
         "start_time": (18, 0),
         "sound": "jeju_raid.mp3"
     }

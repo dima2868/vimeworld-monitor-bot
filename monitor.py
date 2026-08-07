@@ -26,19 +26,19 @@ sent_dungeon_alerts = set()
 
 async def check_and_send_dungeon_alerts(bot: Bot):
     """
-    Checks if a dungeon or raid starts in 2 minutes and sends notifications + plays Discord voice sound.
-    - Hard Dungeon: starts at :10 and :40 -> alert at :08 and :38
-    - Medium Dungeon: starts at :15 and :45 -> alert at :13 and :43
-    - Jeju Raid: starts at 18:00 MSK -> alert at 17:58 MSK
+    Checks if a dungeon or raid starts in 1 minute and sends notifications + plays Discord voice sound.
+    - Hard Dungeon: starts at :10 and :40 -> alert at :09 and :39
+    - Medium Dungeon: starts at :15 and :45 -> alert at :14 and :44
+    - Jeju Raid: starts at 18:00 MSK -> alert at 17:59 MSK
     """
     now = get_now_msk()
     hour = now.hour
     minute = now.minute
     now_str = now.strftime("%H:%M:%S")
     
-    # 1. Hard Dungeon Alert (Alert at :08 and :38)
-    if minute in (8, 38):
-        start_min = 10 if minute == 8 else 40
+    # 1. Hard Dungeon Alert (Alert at :09 and :39 - 1 min before :10 and :40)
+    if minute in (9, 39):
+        start_min = 10 if minute == 9 else 40
         start_time_str = f"{hour:02d}:{start_min:02d}"
         alert_key = ("dungeon_hard", now.date(), hour, minute)
         
@@ -52,7 +52,7 @@ async def check_and_send_dungeon_alerts(bot: Bot):
             if subscribers:
                 msg = (
                     f"⏰ <b>НАПОМИНАНИЕ О ПОДЗЕМЕЛЬЕ!</b> ⏰\n\n"
-                    f"🗡 <b>Сложное подземелье</b> начнется через <b>2 минуты</b> (в <b>{start_time_str}</b>)!\n"
+                    f"🗡 <b>Сложное подземелье</b> начнется через <b>1 минуту</b> (в <b>{start_time_str}</b>)!\n"
                     f"⏰ Время МСК: <b>{now_str}</b>"
                 )
                 for user_id in subscribers:
@@ -63,9 +63,9 @@ async def check_and_send_dungeon_alerts(bot: Bot):
                     except Exception as err:
                         logger.warning(f"Error sending dungeon_hard alert to user {user_id}: {err}")
 
-    # 2. Medium Dungeon Alert (Alert at :13 and :43)
-    if minute in (13, 43):
-        start_min = 15 if minute == 13 else 45
+    # 2. Medium Dungeon Alert (Alert at :14 and :44 - 1 min before :15 and :45)
+    if minute in (14, 44):
+        start_min = 15 if minute == 14 else 45
         start_time_str = f"{hour:02d}:{start_min:02d}"
         alert_key = ("dungeon_medium", now.date(), hour, minute)
         
@@ -79,7 +79,7 @@ async def check_and_send_dungeon_alerts(bot: Bot):
             if subscribers:
                 msg = (
                     f"⏰ <b>НАПОМИНАНИЕ О ПОДЗЕМЕЛЬЕ!</b> ⏰\n\n"
-                    f"⚔️ <b>Среднее подземелье</b> начнется через <b>2 минуты</b> (в <b>{start_time_str}</b>)!\n"
+                    f"⚔️ <b>Среднее подземелье</b> начнется через <b>1 минуту</b> (в <b>{start_time_str}</b>)!\n"
                     f"⏰ Время МСК: <b>{now_str}</b>"
                 )
                 for user_id in subscribers:
@@ -90,8 +90,8 @@ async def check_and_send_dungeon_alerts(bot: Bot):
                     except Exception as err:
                         logger.warning(f"Error sending dungeon_medium alert to user {user_id}: {err}")
 
-    # 3. Jeju Island Raid Alert (Alert at 17:58 MSK)
-    if hour == 17 and minute == 58:
+    # 3. Jeju Island Raid Alert (Alert at 17:59 MSK - 1 min before 18:00 MSK)
+    if hour == 17 and minute == 59:
         alert_key = ("dungeon_jeju", now.date(), hour, minute)
         
         if alert_key not in sent_dungeon_alerts:
@@ -104,7 +104,7 @@ async def check_and_send_dungeon_alerts(bot: Bot):
             if subscribers:
                 msg = (
                     f"🚨 <b>РЕЙД НА ОСТРОВ ЧЕДЖУ!</b> 🚨\n\n"
-                    f"🌋 <b>Рейд на Остров Чеджу</b> начнется через <b>2 минуты</b> (в <b>18:00 МСК</b>)!\n"
+                    f"🌋 <b>Рейд на Остров Чеджу</b> начнется через <b>1 минуту</b> (в <b>18:00 МСК</b>)!\n"
                     f"⏰ Время МСК: <b>{now_str}</b>"
                 )
                 for user_id in subscribers:
@@ -143,7 +143,7 @@ async def start_monitoring(bot: Bot):
         try:
             await asyncio.sleep(CHECK_INTERVAL)
             
-            # Check Dungeon & Raid 2-minute pre-alerts
+            # Check Dungeon & Raid 1-minute pre-alerts
             await check_and_send_dungeon_alerts(bot)
             
             # Check YouTuber online states
