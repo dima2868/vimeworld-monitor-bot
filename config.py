@@ -5,12 +5,13 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8874409890:AAF10XCIfde3cGt2qHPT5vmZwmcPSJNjV8k")
 
-# Discord Bot Settings (Optional)
+# Discord Bot Settings
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
-DISCORD_VOICE_CHANNEL_ID = int(os.getenv("DISCORD_VOICE_CHANNEL_ID", "0")) if os.getenv("DISCORD_VOICE_CHANNEL_ID", "").isdigit() else 0
+DISCORD_VOICE_CHANNEL_ID = int(os.getenv("DISCORD_VOICE_CHANNEL_ID", "1535356648594473000")) if os.getenv("DISCORD_VOICE_CHANNEL_ID", "1535356648594473000").isdigit() else 1535356648594473000
 
 # Admin User IDs
-ADMIN_IDS = [5881764740]
+ADMIN_IDS = [5881764740] # Telegram Admin ID
+DISCORD_ADMIN_IDS = [1065635355014996098] # Discord Admin User ID
 
 # Target players to monitor
 YOUTUBERS = {
@@ -37,7 +38,7 @@ DUNGEONS = {
         "icon": "🗡",
         "schedule_desc": "каждые :10 и :40 минут",
         "minutes": [10, 40],
-        "alert_minutes": [8, 38], # 2 minutes before :10 and :40
+        "alert_minutes": [8, 38],
         "sound": "dungeon_hard.mp3"
     },
     "dungeon_medium": {
@@ -45,14 +46,14 @@ DUNGEONS = {
         "icon": "⚔️",
         "schedule_desc": "каждые :15 и :45 минут",
         "minutes": [15, 45],
-        "alert_minutes": [13, 43], # 2 minutes before :15 and :45
+        "alert_minutes": [13, 43],
         "sound": "dungeon_medium.mp3"
     },
     "dungeon_jeju": {
         "name": "Остров Чеджу (Рейд)",
         "icon": "🌋",
         "schedule_desc": "в 18:00 МСК",
-        "alert_time": (17, 58), # 17:58 MSK (2 minutes before 18:00)
+        "alert_time": (17, 58),
         "start_time": (18, 0),
         "sound": "jeju_raid.mp3"
     }

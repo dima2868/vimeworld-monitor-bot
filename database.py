@@ -33,6 +33,12 @@ async def init_db():
                 last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS discord_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value INTEGER DEFAULT 1
+            )
+        """)
         
         # Ensure column last_state exists for database migrations
         try:
@@ -53,7 +59,7 @@ async def add_user(user_id: int):
         await db.commit()
 
 async def subscribe_user(user_id: int, target_nick: str):
-    """Subscribes a user to monitor a specific player."""
+    """Subscribes a user to monitor a specific player or dungeon."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "INSERT OR IGNORE INTO subscriptions (user_id, target_nick) VALUES (?, ?)",
@@ -62,7 +68,7 @@ async def subscribe_user(user_id: int, target_nick: str):
         await db.commit()
 
 async def unsubscribe_user(user_id: int, target_nick: str):
-    """Unsubscribes a user from monitoring a specific player."""
+    """Unsubscribes a user from monitoring a specific player or dungeon."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "DELETE FROM subscriptions WHERE user_id = ? AND target_nick = ?",
@@ -71,7 +77,7 @@ async def unsubscribe_user(user_id: int, target_nick: str):
         await db.commit()
 
 async def is_subscribed(user_id: int, target_nick: str) -> bool:
-    """Checks if a user is subscribed to a player."""
+    """Checks if a user is subscribed to a player or dungeon."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             "SELECT 1 FROM subscriptions WHERE user_id = ? AND target_nick = ?",
@@ -91,7 +97,7 @@ async def get_user_subscriptions(user_id: int) -> list:
             return [row[0] for row in rows]
 
 async def get_subscribers_for_player(target_nick: str) -> list:
-    """Gets all user_ids subscribed to a specific player."""
+    """Gets all user_ids subscribed to a specific player or dungeon."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             "SELECT user_id FROM subscriptions WHERE target_nick = ?",
@@ -135,6 +141,49 @@ async def update_player_last_state(target_nick: str, state: str, is_online: bool
             (target_nick, 1 if is_online else 0, state)
         )
         await db.commit()
+
+# --- DISCORD VOICE SETTINGS HELPERS ---
+
+async def get_discord_setting(key: str, default_val: int = 1) -> bool:
+    """Returns True if the Discord voice setting is enabled, False otherwise."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT setting_value FROM discord_settings WHERE setting_key = ?",
+            (key,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row is not None:
+                return bool(row[0])
+            return bool(default_val)
+
+async def set_discord_setting(key: str, value: int):
+    """Sets a Discord voice setting (1 for ON, 0 for OFF)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO discord_settings (setting_key, setting_value)
+            VALUES (?, ?)
+            ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value
+            """,
+            (key, 1 if value else 0)
+        )
+        await db.commit()
+
+async def get_all_discord_settings() -> dict:
+    """Returns dict of all saved Discord settings."""
+    defaults = {
+        "sound_dungeon_hard": 1,
+        "sound_dungeon_medium": 1,
+        "sound_dungeon_jeju": 1,
+        "sound_MrLalalashkaXXL": 1,
+        "sound_F1xPlay_": 1,
+    }
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT setting_key, setting_value FROM discord_settings") as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                defaults[row[0]] = int(row[1])
+    return defaults
 
 # --- ADMIN STATS FUNCTIONS ---
 
