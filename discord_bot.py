@@ -13,10 +13,10 @@ try:
     import discord
     from discord.ext import commands
     
+    # Use standard non-privileged intents for voice channels
     intents = discord.Intents.default()
     intents.voice_states = True
     intents.guilds = True
-    intents.members = True
     
     discord_client = commands.Bot(command_prefix="!", intents=intents)
     
