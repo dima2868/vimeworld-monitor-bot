@@ -5,6 +5,10 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8874409890:AAF10XCIfde3cGt2qHPT5vmZwmcPSJNjV8k")
 
+# Discord Bot Settings (Optional)
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+DISCORD_VOICE_CHANNEL_ID = int(os.getenv("DISCORD_VOICE_CHANNEL_ID", "0")) if os.getenv("DISCORD_VOICE_CHANNEL_ID", "").isdigit() else 0
+
 # Admin User IDs
 ADMIN_IDS = [5881764740]
 
@@ -15,12 +19,14 @@ YOUTUBERS = {
         "nick": "MrLalalashkaXXL",
         "url": "https://vimeworld.com/player/MrLalalashkaXXL",
         "icon": "🎬",
+        "sound": "lololoshka_online.mp3"
     },
     "F1xPlay_": {
         "name": "Фиксплей",
         "nick": "F1xPlay_",
         "url": "https://vimeworld.com/player/F1xPlay_",
         "icon": "🎮",
+        "sound": "fixplay_online.mp3"
     }
 }
 
@@ -32,6 +38,7 @@ DUNGEONS = {
         "schedule_desc": "каждые :10 и :40 минут",
         "minutes": [10, 40],
         "alert_minutes": [8, 38],
+        "sound": "dungeon_hard.mp3"
     },
     "dungeon_medium": {
         "name": "Среднее подземелье",
@@ -39,13 +46,15 @@ DUNGEONS = {
         "schedule_desc": "каждые :15 и :45 минут",
         "minutes": [15, 45],
         "alert_minutes": [13, 43],
+        "sound": "dungeon_medium.mp3"
     },
     "dungeon_jeju": {
         "name": "Остров Чеджу (Рейд)",
         "icon": "🌋",
         "schedule_desc": "в 18:00 МСК",
-        "alert_time": (17, 58), # 17:58 MSK
-        "start_time": (18, 0),  # 18:00 MSK
+        "alert_time": (17, 58),
+        "start_time": (18, 0),
+        "sound": "jeju_raid.mp3"
     }
 }
 

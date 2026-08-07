@@ -6,6 +6,7 @@ from aiogram.exceptions import TelegramRetryAfter, TelegramAPIError
 from config import YOUTUBERS, DUNGEONS, CHECK_INTERVAL
 import checker
 import database as db
+import discord_bot
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ sent_dungeon_alerts = set()
 
 async def check_and_send_dungeon_alerts(bot: Bot):
     """
-    Checks if a dungeon or raid starts in 2 minutes and sends notifications to subscribers.
+    Checks if a dungeon or raid starts in 2 minutes and sends notifications + plays Discord voice sound.
     - Hard Dungeon: starts at :10 and :40 -> alert at :08 and :38
     - Medium Dungeon: starts at :15 and :45 -> alert at :13 and :43
     - Jeju Raid: starts at 18:00 MSK -> alert at 17:58 MSK
@@ -43,6 +44,10 @@ async def check_and_send_dungeon_alerts(bot: Bot):
         
         if alert_key not in sent_dungeon_alerts:
             sent_dungeon_alerts.add(alert_key)
+            
+            # Play Discord Voice Audio
+            asyncio.create_task(discord_bot.play_voice_sound("dungeon_hard.mp3"))
+            
             subscribers = await db.get_subscribers_for_player("dungeon_hard")
             if subscribers:
                 msg = (
@@ -66,6 +71,10 @@ async def check_and_send_dungeon_alerts(bot: Bot):
         
         if alert_key not in sent_dungeon_alerts:
             sent_dungeon_alerts.add(alert_key)
+            
+            # Play Discord Voice Audio
+            asyncio.create_task(discord_bot.play_voice_sound("dungeon_medium.mp3"))
+            
             subscribers = await db.get_subscribers_for_player("dungeon_medium")
             if subscribers:
                 msg = (
@@ -87,6 +96,10 @@ async def check_and_send_dungeon_alerts(bot: Bot):
         
         if alert_key not in sent_dungeon_alerts:
             sent_dungeon_alerts.add(alert_key)
+            
+            # Play Discord Voice Audio
+            asyncio.create_task(discord_bot.play_voice_sound("jeju_raid.mp3"))
+            
             subscribers = await db.get_subscribers_for_player("dungeon_jeju")
             if subscribers:
                 msg = (
@@ -143,6 +156,10 @@ async def start_monitoring(bot: Bot):
                 if current_state != prev_state:
                     logger.info(f"⚡ State change for {data['name']} ({nick}): {prev_state} ➔ {current_state}")
                     
+                    # Play Discord Voice Audio if YouTuber enters Solo Leveling
+                    if current_state == "SOLOLEVELING" and "sound" in data:
+                        asyncio.create_task(discord_bot.play_voice_sound(data["sound"]))
+
                     subscribers = await db.get_subscribers_for_player(nick)
                     if subscribers:
                         now_str = get_now_msk_str()

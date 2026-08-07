@@ -6,6 +6,7 @@ from config import BOT_TOKEN
 import database as db
 from handlers import router
 import monitor
+import discord_bot
 
 # Configure logging
 logging.basicConfig(
@@ -35,11 +36,15 @@ async def main():
     # Launch background monitoring worker
     monitoring_task = asyncio.create_task(monitor.start_monitoring(bot))
 
+    # Launch Discord voice bot worker (if configured)
+    discord_task = asyncio.create_task(discord_bot.start_discord_bot())
+
     try:
         logger.info("Starting Telegram bot polling...")
         await dp.start_polling(bot)
     finally:
         monitoring_task.cancel()
+        discord_task.cancel()
         await bot.session.close()
 
 if __name__ == "__main__":
