@@ -96,6 +96,7 @@ async def get_discord_debug_info() -> str:
 async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
     """
     Plays an MP3/OGG sound file in the active Discord Voice Channel ONLY IF at least 1 human is inside.
+    Amplifies audio volume by +250% (volume=2.5) via FFmpeg filter.
     Automatically disconnects from the voice channel immediately after playback completes.
     Returns (success: bool, detail_message: str).
     """
@@ -142,9 +143,10 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
             if voice_client.is_playing():
                 voice_client.stop()
                 
-            audio_source = discord.FFmpegPCMAudio(sound_path)
+            # FFmpeg option: -af "volume=2.5" amplifies audio volume to 250% (+8 dB)
+            audio_source = discord.FFmpegPCMAudio(sound_path, options='-af "volume=2.5"')
             voice_client.play(audio_source)
-            logger.info(f"Playing Discord voice alert: {sound_filename} in channel '{target_vc.name}'")
+            logger.info(f"Playing Discord voice alert (+250% volume): {sound_filename} in channel '{target_vc.name}'")
             
             # Background task to disconnect cleanly as soon as audio finishes playing
             async def disconnect_after_playback():
@@ -163,7 +165,7 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
 
             asyncio.create_task(disconnect_after_playback())
             
-            return True, f"🔊 Проигрываю звук <b>{sound_filename}</b> в канале <b>{target_vc.name}</b> (выйду сразу после завершения)!"
+            return True, f"🔊 Проигрываю громкий звук (+250%) <b>{sound_filename}</b> в канале <b>{target_vc.name}</b>!"
     except Exception as e:
         err_msg = f"❌ Ошибка воспроизведения звука: {e}"
         logger.error(err_msg)
