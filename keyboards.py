@@ -1,13 +1,16 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from config import YOUTUBERS, CREATOR, ADMIN_IDS
+from config import YOUTUBERS, DUNGEONS, CREATOR, ADMIN_IDS
 import database as db
 
 def get_main_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
-    """Returns main menu reply keyboard, with Admin button if user is admin."""
+    """Returns main menu reply keyboard."""
     keyboard = [
         [
             KeyboardButton(text="🎬 Лололошка"),
             KeyboardButton(text="🎮 Фиксплей")
+        ],
+        [
+            KeyboardButton(text="🗡 Подземелья и Рейды")
         ],
         [
             KeyboardButton(text="🔔 Настройка уведомлений")
@@ -28,35 +31,56 @@ def get_main_keyboard(user_id: int = None) -> ReplyKeyboardMarkup:
     )
 
 async def get_monitoring_inline_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Generates inline keyboard for notification subscriptions."""
+    """Generates inline keyboard for notification subscriptions (YouTubers + Dungeons)."""
     subs = await db.get_user_subscriptions(user_id)
     
     lol_sub = "MrLalalashkaXXL" in subs
     fix_sub = "F1xPlay_" in subs
-
-    lol_btn_text = "🎬 Лололошка: 🟢 Включен" if lol_sub else "🎬 Лололошка: 🔴 Выключен"
-    fix_btn_text = "🎮 Фиксплей: 🟢 Включен" if fix_sub else "🎮 Фиксплей: 🔴 Выключен"
+    hard_sub = "dungeon_hard" in subs
+    med_sub = "dungeon_medium" in subs
+    jeju_sub = "dungeon_jeju" in subs
 
     keyboard = [
+        # YouTubers
         [
             InlineKeyboardButton(
-                text=lol_btn_text,
+                text=f"🎬 Лололошка: {'🟢 Включен' if lol_sub else '🔴 Выключен'}",
                 callback_data="toggle_MrLalalashkaXXL"
             )
         ],
         [
             InlineKeyboardButton(
-                text=fix_btn_text,
+                text=f"🎮 Фиксплей: {'🟢 Включен' if fix_sub else '🔴 Выключен'}",
                 callback_data="toggle_F1xPlay_"
+            )
+        ],
+        # Dungeons
+        [
+            InlineKeyboardButton(
+                text=f"🗡 Сложное (:10, :40): {'🟢 Включен' if hard_sub else '🔴 Выключен'}",
+                callback_data="toggle_dungeon_hard"
             )
         ],
         [
             InlineKeyboardButton(
-                text="🟢 Включить всё",
+                text=f"⚔️ Среднее (:15, :45): {'🟢 Включен' if med_sub else '🔴 Выключен'}",
+                callback_data="toggle_dungeon_medium"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"🌋 Остров Чеджу (18:00): {'🟢 Включен' if jeju_sub else '🔴 Выключен'}",
+                callback_data="toggle_dungeon_jeju"
+            )
+        ],
+        # Master toggles
+        [
+            InlineKeyboardButton(
+                text="🟢 Включить ВСЁ",
                 callback_data="enable_all"
             ),
             InlineKeyboardButton(
-                text="🔴 Выключить всё",
+                text="🔴 Выключить ВСЁ",
                 callback_data="disable_all"
             )
         ]

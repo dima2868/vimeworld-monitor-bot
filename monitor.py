@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from aiogram import Bot
 from aiogram.exceptions import TelegramRetryAfter, TelegramAPIError
-from config import YOUTUBERS, CHECK_INTERVAL
+from config import YOUTUBERS, DUNGEONS, CHECK_INTERVAL
 import checker
 import database as db
 
@@ -12,18 +12,103 @@ logger = logging.getLogger(__name__)
 # Moscow Timezone (UTC+3)
 MSK_TZ = timezone(timedelta(hours=3))
 
+def get_now_msk() -> datetime:
+    """Returns current datetime in Moscow timezone (UTC+3)."""
+    return datetime.now(MSK_TZ)
+
 def get_now_msk_str() -> str:
     """Returns current Moscow time formatted as HH:MM:SS."""
-    return datetime.now(MSK_TZ).strftime("%H:%M:%S")
+    return get_now_msk().strftime("%H:%M:%S")
+
+# Set to keep track of sent dungeon alerts to prevent duplicate sends
+sent_dungeon_alerts = set()
+
+async def check_and_send_dungeon_alerts(bot: Bot):
+    """
+    Checks if a dungeon or raid starts in 2 minutes and sends notifications to subscribers.
+    - Hard Dungeon: starts at :10 and :40 -> alert at :08 and :38
+    - Medium Dungeon: starts at :15 and :45 -> alert at :13 and :43
+    - Jeju Raid: starts at 18:00 MSK -> alert at 17:58 MSK
+    """
+    now = get_now_msk()
+    hour = now.hour
+    minute = now.minute
+    now_str = now.strftime("%H:%M:%S")
+    
+    # 1. Hard Dungeon Alert (Alert at :08 and :38)
+    if minute in (8, 38):
+        start_min = 10 if minute == 8 else 40
+        start_time_str = f"{hour:02d}:{start_min:02d}"
+        alert_key = ("dungeon_hard", now.date(), hour, minute)
+        
+        if alert_key not in sent_dungeon_alerts:
+            sent_dungeon_alerts.add(alert_key)
+            subscribers = await db.get_subscribers_for_player("dungeon_hard")
+            if subscribers:
+                msg = (
+                    f"⏰ <b>НАПОМИНАНИЕ О ПОДЗЕМЕЛЬЕ!</b> ⏰\n\n"
+                    f"🗡 <b>Сложное подземелье</b> начнется через <b>2 минуты</b> (в <b>{start_time_str}</b>)!\n"
+                    f"⏰ Время МСК: <b>{now_str}</b>"
+                )
+                for user_id in subscribers:
+                    try:
+                        await bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML")
+                    except TelegramRetryAfter as err:
+                        await asyncio.sleep(err.retry_after + 1)
+                    except Exception as err:
+                        logger.warning(f"Error sending dungeon_hard alert to user {user_id}: {err}")
+
+    # 2. Medium Dungeon Alert (Alert at :13 and :43)
+    if minute in (13, 43):
+        start_min = 15 if minute == 13 else 45
+        start_time_str = f"{hour:02d}:{start_min:02d}"
+        alert_key = ("dungeon_medium", now.date(), hour, minute)
+        
+        if alert_key not in sent_dungeon_alerts:
+            sent_dungeon_alerts.add(alert_key)
+            subscribers = await db.get_subscribers_for_player("dungeon_medium")
+            if subscribers:
+                msg = (
+                    f"⏰ <b>НАПОМИНАНИЕ О ПОДЗЕМЕЛЬЕ!</b> ⏰\n\n"
+                    f"⚔️ <b>Среднее подземелье</b> начнется через <b>2 минуты</b> (в <b>{start_time_str}</b>)!\n"
+                    f"⏰ Время МСК: <b>{now_str}</b>"
+                )
+                for user_id in subscribers:
+                    try:
+                        await bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML")
+                    except TelegramRetryAfter as err:
+                        await asyncio.sleep(err.retry_after + 1)
+                    except Exception as err:
+                        logger.warning(f"Error sending dungeon_medium alert to user {user_id}: {err}")
+
+    # 3. Jeju Island Raid Alert (Alert at 17:58 MSK)
+    if hour == 17 and minute == 58:
+        alert_key = ("dungeon_jeju", now.date(), hour, minute)
+        
+        if alert_key not in sent_dungeon_alerts:
+            sent_dungeon_alerts.add(alert_key)
+            subscribers = await db.get_subscribers_for_player("dungeon_jeju")
+            if subscribers:
+                msg = (
+                    f"🚨 <b>РЕЙД НА ОСТРОВ ЧЕДЖУ!</b> 🚨\n\n"
+                    f"🌋 <b>Рейд на Остров Чеджу</b> начнется через <b>2 минуты</b> (в <b>18:00 МСК</b>)!\n"
+                    f"⏰ Время МСК: <b>{now_str}</b>"
+                )
+                for user_id in subscribers:
+                    try:
+                        await bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML")
+                    except TelegramRetryAfter as err:
+                        await asyncio.sleep(err.retry_after + 1)
+                    except Exception as err:
+                        logger.warning(f"Error sending dungeon_jeju alert to user {user_id}: {err}")
+
+    # Clean old alert keys periodically
+    if len(sent_dungeon_alerts) > 50:
+        sent_dungeon_alerts.clear()
 
 async def start_monitoring(bot: Bot):
     """
-    Background worker loop that checks YouTuber online status periodically (every 2s).
-    Preserves existing states in SQLite across bot restarts to avoid resetting notifications.
-    Triggers notifications on state transitions:
-    - Entering Solo Leveling (SOLOLEVELING)
-    - Moving to Lobby (LOBBY)
-    - Disconnecting (OFFLINE)
+    Background worker loop that checks YouTuber online status and Dungeon/Raid timers every 2s.
     """
     logger.info(f"Starting background monitoring loop (check interval: {CHECK_INTERVAL}s)...")
     
@@ -45,6 +130,10 @@ async def start_monitoring(bot: Bot):
         try:
             await asyncio.sleep(CHECK_INTERVAL)
             
+            # Check Dungeon & Raid 2-minute pre-alerts
+            await check_and_send_dungeon_alerts(bot)
+            
+            # Check YouTuber online states
             for nick, data in YOUTUBERS.items():
                 info = await checker.fetch_player_status(nick)
                 current_state = info['state']
