@@ -104,7 +104,7 @@ def generate_dungeon_schedule_text() -> str:
         f"   🕒 Ближайшее: <b>{medium['formatted_time']}</b> (через <b>{medium['mins_left']} мин</b>)\n\n"
         f"3. {jeju['icon']} <b>{jeju['name']}</b> ({DUNGEONS['dungeon_jeju']['schedule_desc']})\n"
         f"   🕒 Ближайшее: <b>{jeju['formatted_time']}</b> (через <b>{jeju['hours_left']} ч {jeju['mins_left']} мин</b>)\n\n"
-        f"🔔 <i>Уведомления и голосовые анонсы приходят ровно за 1 минуту до старта!</i>\n"
+        f"🔔 <i>Уведомления и голосовые анонсы приходят ровно за 2 минуты до старта!</i>\n"
         f"🕒 <i>Текущее время (МСК): {now_str}</i>"
     )
     return text
