@@ -84,7 +84,10 @@ async def play_voice_sound(sound_filename: str):
         
     sound_path = os.path.join("sounds", sound_filename)
     if not os.path.exists(sound_path):
-        logger.warning(f"Audio file '{sound_path}' not found! Please place {sound_filename} in the sounds/ directory.")
+        sound_path = sound_filename # Fallback to root dir
+        
+    if not os.path.exists(sound_path):
+        logger.warning(f"Audio file '{sound_filename}' not found in sounds/ or root directory.")
         return
 
     try:
