@@ -96,7 +96,7 @@ async def get_discord_debug_info() -> str:
 async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
     """
     Plays an MP3/OGG sound file in the active Discord Voice Channel ONLY IF at least 1 human is inside.
-    Amplifies audio volume by +250% (volume=2.5) via FFmpeg filter.
+    Amplifies audio volume by +400% (volume=4.0) via FFmpeg filter.
     Automatically disconnects from the voice channel immediately after playback completes.
     Returns (success: bool, detail_message: str).
     """
@@ -143,10 +143,10 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
             if voice_client.is_playing():
                 voice_client.stop()
                 
-            # FFmpeg option: -af "volume=2.5" amplifies audio volume to 250% (+8 dB)
-            audio_source = discord.FFmpegPCMAudio(sound_path, options='-af "volume=2.5"')
+            # FFmpeg option: -af "volume=4.0" amplifies audio volume to 400% (+12 dB)
+            audio_source = discord.FFmpegPCMAudio(sound_path, options='-af "volume=4.0"')
             voice_client.play(audio_source)
-            logger.info(f"Playing Discord voice alert (+250% volume): {sound_filename} in channel '{target_vc.name}'")
+            logger.info(f"Playing Discord voice alert (+400% volume): {sound_filename} in channel '{target_vc.name}'")
             
             # Background task to disconnect cleanly as soon as audio finishes playing
             async def disconnect_after_playback():
@@ -165,7 +165,7 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
 
             asyncio.create_task(disconnect_after_playback())
             
-            return True, f"🔊 Проигрываю громкий звук (+250%) <b>{sound_filename}</b> в канале <b>{target_vc.name}</b>!"
+            return True, f"🔊 Проигрываю максимальный громкий звук (+400%) <b>{sound_filename}</b> в канале <b>{target_vc.name}</b>!"
     except Exception as e:
         err_msg = f"❌ Ошибка воспроизведения звука: {e}"
         logger.error(err_msg)
