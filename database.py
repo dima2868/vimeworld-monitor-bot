@@ -168,3 +168,12 @@ async def get_discord_verification(discord_user_id: int) -> str:
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else None
+
+async def delete_discord_verification(discord_user_id: int):
+    """Deletes linked VimeWorld verification for Discord user ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM discord_verifications WHERE discord_user_id = ?",
+            (discord_user_id,)
+        )
+        await db.commit()

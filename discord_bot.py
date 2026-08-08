@@ -103,7 +103,30 @@ try:
             await message.channel.send(embed=embed, view=view)
             return
 
-        # 2. Verify text command (!verify nick or /verify nick or verify nick)
+        # 2. Unverify admin text command (!unverify @User or /unverify @User)
+        if lower_content.startswith("!unverify") or lower_content.startswith("/unverify") or lower_content.startswith("unverify "):
+            if message.author.id not in DISCORD_ADMIN_IDS:
+                await message.channel.send("⛔ **Эта команда доступна только администратору.**", delete_after=5)
+                return
+                
+            target_member = None
+            if message.mentions:
+                target_member = message.mentions[0]
+            else:
+                parts = content.split()
+                if len(parts) > 1 and parts[1].isdigit():
+                    user_id = int(parts[1])
+                    target_member = message.guild.get_member(user_id)
+                    
+            if not target_member:
+                await message.channel.send("❌ **Укажите участника (упоминание или ID)!** Пример: `!unverify @User`")
+                return
+
+            success, msg_out = await process_user_unverify(message.guild, target_member)
+            await message.channel.send(msg_out)
+            return
+
+        # 3. Verify text command (!verify nick or /verify nick or verify nick)
         if lower_content.startswith("!verify") or lower_content.startswith("/verify") or lower_content.startswith("verify "):
             parts = content.split(maxsplit=1)
             if len(parts) > 1:
@@ -114,13 +137,13 @@ try:
                 await message.channel.send("🔗 **Укажите ваш никнейм VimeWorld!** Пример: `!verify dima_286812312`")
             return
 
-        # 3. Sync text command (!sync or /sync or sync)
+        # 4. Sync text command (!sync or /sync or sync)
         if lower_content in ("!sync", "/sync", "sync"):
             success, msg_out = await process_user_sync(message.guild, message.author)
             await message.channel.send(msg_out)
             return
 
-        # 4. Player Profile text command - OPEN TO ALL USERS (!player nick or /player nick or player nick)
+        # 5. Player Profile text command - OPEN TO ALL USERS (!player nick or /player nick or player nick)
         if lower_content.startswith("!player") or lower_content.startswith("/player") or lower_content.startswith("!profile") or lower_content.startswith("/profile") or lower_content.startswith("player ") or lower_content.startswith("профиль "):
             parts = content.split(maxsplit=1)
             if len(parts) > 1:
@@ -135,7 +158,7 @@ try:
                 await message.channel.send("🔍 **Укажите никнейм игрока!** Пример: `!player dima_286812312`")
             return
 
-        # 5. Player Comparison text command - OPEN TO ALL USERS (!compare nick1 nick2 or /compare nick1 nick2)
+        # 6. Player Comparison text command - OPEN TO ALL USERS (!compare nick1 nick2 or /compare nick1 nick2)
         if lower_content.startswith("!compare") or lower_content.startswith("/compare") or lower_content.startswith("!сравнить") or lower_content.startswith("/сравнить") or lower_content.startswith("сравнить "):
             parts = content.split()
             if len(parts) >= 3:
@@ -291,6 +314,43 @@ async def process_user_sync(guild: discord.Guild, member: discord.Member) -> tup
         f"🔄 **Роли успешно синхронизированы!**\n\n"
         f"👤 Ник: `{profile['nickname']}` | Уровень: `{profile['level']}` | 🔄 Перерождений: `{profile['sl_rebirth']}`\n"
         f"🎖 **Обновлённые роли:** {roles_str}"
+    )
+    return True, text
+
+
+async def process_user_unverify(guild: discord.Guild, target_member: discord.Member) -> tuple[bool, str]:
+    """Removes VimeWorld verification and strips all bot-assigned roles."""
+    if not target_member:
+        return False, "❌ Участник не найден на сервере!"
+
+    # 1. Delete from database
+    await db.delete_discord_verification(target_member.id)
+
+    # 2. Find and strip all VimeWorld managed roles
+    managed_role_names = [c["name"] for c in ROLE_CONFIGS]
+    roles_to_remove = [r for r in target_member.roles if r.name in managed_role_names]
+
+    removed_role_names = [r.name for r in roles_to_remove]
+
+    try:
+        if roles_to_remove:
+            await target_member.remove_roles(*roles_to_remove, reason="VimeWorld Unverify Admin Command")
+        
+        # Reset server nickname if possible
+        try:
+            if target_member.id != guild.owner_id and target_member.nick:
+                await target_member.edit(nick=None)
+        except Exception:
+            pass
+    except Exception as e:
+        logger.warning(f"Error removing roles during unverify for {target_member.display_name}: {e}")
+
+    roles_str = ", ".join([f"`{r}`" for r in removed_role_names]) if removed_role_names else "нет"
+
+    text = (
+        f"🗑 **Верификация отменена администратором!**\n\n"
+        f"👤 Участник: **{target_member.mention}** (`{target_member.id}`)\n"
+        f"❌ **Удаленные роли VimeWorld:** {roles_str}"
     )
     return True, text
 
@@ -530,6 +590,17 @@ if tree:
         embed = generate_admin_embed(settings)
         view = DiscordAdminView(admin_id=interaction.user.id, settings=settings)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @tree.command(name="unverify", description="Снять верификацию VimeWorld с участника и забрать роли (только для администратора)")
+    @app_commands.describe(member="Участник сервера")
+    async def slash_unverify(interaction: discord.Interaction, member: discord.Member):
+        if interaction.user.id not in DISCORD_ADMIN_IDS:
+            await interaction.response.send_message("⛔ **Эта команда доступна только администратору.**", ephemeral=True)
+            return
+            
+        await interaction.response.defer()
+        success, msg_out = await process_user_unverify(interaction.guild, member)
+        await interaction.followup.send(msg_out)
 
     @tree.command(name="verify", description="Привязать никнейм VimeWorld и автоматически получить роли на сервере")
     @app_commands.describe(nickname="Ваш никнейм на VimeWorld")
