@@ -15,6 +15,27 @@ discord_client = None
 voice_client = None
 tree = None
 
+ROLE_CONFIGS = [
+    # Ranks (Highest to lowest)
+    {"name": "👑 Imperial", "color_rgb": (255, 215, 0), "type": "rank", "match": "IMPERIAL"},
+    {"name": "💎 Vime", "color_rgb": (0, 255, 255), "type": "rank", "match": "VIME"},
+    {"name": "⚡ Premium", "color_rgb": (155, 89, 182), "type": "rank", "match": "PREMIUM"},
+    {"name": "⭐ VIP", "color_rgb": (46, 204, 113), "type": "rank", "match": "VIP"},
+    {"name": "👤 Игрок VimeWorld", "color_rgb": (149, 165, 166), "type": "rank", "match": "USER"},
+
+    # Levels (Highest to lowest)
+    {"name": "🔥 Level 100+", "color_rgb": (255, 69, 0), "type": "level", "min_lvl": 100},
+    {"name": "💎 Level 50+", "color_rgb": (30, 144, 255), "type": "level", "min_lvl": 50},
+    {"name": "⭐ Level 20+", "color_rgb": (241, 196, 15), "type": "level", "min_lvl": 20},
+    {"name": "🌱 Level 1+", "color_rgb": (127, 140, 141), "type": "level", "min_lvl": 1},
+
+    # Rebirths (Highest to lowest)
+    {"name": "👑 Rebirth 50+", "color_rgb": (231, 76, 60), "type": "rebirth", "min_reb": 50},
+    {"name": "🗡 Rebirth 20+", "color_rgb": (192, 57, 43), "type": "rebirth", "min_reb": 20},
+    {"name": "⚔️ Rebirth 10+", "color_rgb": (26, 188, 156), "type": "rebirth", "min_reb": 10},
+    {"name": "🔰 Rebirth 1+", "color_rgb": (52, 152, 219), "type": "rebirth", "min_reb": 1},
+]
+
 try:
     import discord
     from discord import app_commands
@@ -26,6 +47,7 @@ try:
     intents.guilds = True
     intents.messages = True
     intents.message_content = True
+    intents.members = True
     
     discord_client = commands.Bot(command_prefix=["!", "/"], intents=intents)
     tree = discord_client.tree
@@ -73,7 +95,24 @@ try:
             await message.channel.send(embed=embed, view=view)
             return
 
-        # 2. Player Profile text command - OPEN TO ALL USERS (!player nick or /player nick or player nick)
+        # 2. Verify text command (!verify nick or /verify nick or verify nick)
+        if lower_content.startswith("!verify") or lower_content.startswith("/verify") or lower_content.startswith("verify "):
+            parts = content.split(maxsplit=1)
+            if len(parts) > 1:
+                nick = parts[1].strip()
+                success, msg_out = await process_user_verification(message.guild, message.author, nick)
+                await message.channel.send(msg_out)
+            else:
+                await message.channel.send("🔗 **Укажите ваш никнейм VimeWorld!** Пример: `!verify dima_286812312`")
+            return
+
+        # 3. Sync text command (!sync or /sync or sync)
+        if lower_content in ("!sync", "/sync", "sync"):
+            success, msg_out = await process_user_sync(message.guild, message.author)
+            await message.channel.send(msg_out)
+            return
+
+        # 4. Player Profile text command - OPEN TO ALL USERS (!player nick or /player nick or player nick)
         if lower_content.startswith("!player") or lower_content.startswith("/player") or lower_content.startswith("!profile") or lower_content.startswith("/profile") or lower_content.startswith("player ") or lower_content.startswith("профиль "):
             parts = content.split(maxsplit=1)
             if len(parts) > 1:
@@ -88,7 +127,7 @@ try:
                 await message.channel.send("🔍 **Укажите никнейм игрока!** Пример: `!player dima_286812312`")
             return
 
-        # 3. Player Comparison text command - OPEN TO ALL USERS (!compare nick1 nick2 or /compare nick1 nick2)
+        # 5. Player Comparison text command - OPEN TO ALL USERS (!compare nick1 nick2 or /compare nick1 nick2)
         if lower_content.startswith("!compare") or lower_content.startswith("/compare") or lower_content.startswith("!сравнить") or lower_content.startswith("/сравнить") or lower_content.startswith("сравнить "):
             parts = content.split()
             if len(parts) >= 3:
@@ -118,6 +157,134 @@ except ImportError:
 def is_discord_ready() -> bool:
     """Checks if Discord bot is initialized and logged in."""
     return bool(discord_client and discord_client.is_ready())
+
+
+async def ensure_role_exists(guild: discord.Guild, role_cfg: dict) -> discord.Role:
+    """Creates role on guild if it doesn't exist."""
+    role_name = role_cfg["name"]
+    role = discord.utils.get(guild.roles, name=role_name)
+    if not role:
+        try:
+            r, g, b = role_cfg["color_rgb"]
+            role = await guild.create_role(
+                name=role_name,
+                color=discord.Color.from_rgb(r, g, b),
+                hoist=True,
+                mentionable=False,
+                reason="VimeWorld Auto-Role System"
+            )
+            logger.info(f"Created Discord role '{role_name}' on server {guild.name}")
+        except Exception as e:
+            logger.warning(f"Could not create role '{role_name}' on guild {guild.name}: {e}")
+    return role
+
+
+async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile: dict) -> list[str]:
+    """
+    Automatically assigns appropriate rank, level, and rebirth roles to Discord member,
+    creating missing roles on the server if needed.
+    """
+    if not guild or not member:
+        return []
+        
+    user_rank = (profile.get("rank") or "USER").upper()
+    user_lvl = profile.get("level", 0) or 0
+    user_reb = profile.get("sl_rebirth", 0) or 0
+    
+    # Determine target roles for this profile
+    target_rank_cfg = None
+    for cfg in [c for c in ROLE_CONFIGS if c["type"] == "rank"]:
+        if cfg["match"] == user_rank:
+            target_rank_cfg = cfg
+            break
+    if not target_rank_cfg:
+        target_rank_cfg = [c for c in ROLE_CONFIGS if c["match"] == "USER"][0]
+
+    target_lvl_cfg = None
+    for cfg in [c for c in ROLE_CONFIGS if c["type"] == "level"]:
+        if user_lvl >= cfg["min_lvl"]:
+            target_lvl_cfg = cfg
+            break
+
+    target_reb_cfg = None
+    for cfg in [c for c in ROLE_CONFIGS if c["type"] == "rebirth"]:
+        if user_reb >= cfg["min_reb"]:
+            target_reb_cfg = cfg
+            break
+
+    assigned_role_names = []
+    managed_role_names = [c["name"] for c in ROLE_CONFIGS]
+    
+    # Roles to add
+    roles_to_add = []
+    for cfg in (target_rank_cfg, target_lvl_cfg, target_reb_cfg):
+        if cfg:
+            role = await ensure_role_exists(guild, cfg)
+            if role:
+                roles_to_add.append(role)
+                assigned_role_names.append(role.name)
+
+    # Roles to remove (obsolete VimeWorld managed roles)
+    roles_to_remove = [r for r in member.roles if r.name in managed_role_names and r not in roles_to_add]
+
+    try:
+        if roles_to_remove:
+            await member.remove_roles(*roles_to_remove, reason="VimeWorld Sync Update")
+        if roles_to_add:
+            await member.add_roles(*roles_to_add, reason="VimeWorld Sync Update")
+            
+        # Try updating nickname if bot has permissions
+        try:
+            new_nick = f"{profile['nickname']} [{user_lvl} lvl]"
+            if member.id != guild.owner_id and member.nick != new_nick:
+                await member.edit(nick=new_nick)
+        except Exception:
+            pass # Ignore if lacking nickname permission
+    except Exception as e:
+        logger.warning(f"Error syncing roles for member {member.display_name}: {e}")
+
+    return assigned_role_names
+
+
+async def process_user_verification(guild: discord.Guild, member: discord.Member, nickname: str) -> tuple[bool, str]:
+    """Verifies VimeWorld nickname and updates Discord roles."""
+    profile = await checker.fetch_full_player_profile(nickname)
+    if not profile.get("exists"):
+        return False, f"❌ Игрок `{nickname}` не найден на VimeWorld!"
+
+    await db.save_discord_verification(member.id, profile["nickname"])
+    assigned_roles = await sync_user_roles(guild, member, profile)
+    
+    roles_str = ", ".join([f"`{r}`" for r in assigned_roles]) if assigned_roles else "нет"
+    
+    text = (
+        f"✅ **Успешная верификация!**\n\n"
+        f"👤 Аккаунт **{member.mention}** привязан к VimeWorld нику ` {profile['nickname']} `\n"
+        f"📊 Уровень: `{profile['level']}` | 🔄 Перерождений: `{profile['sl_rebirth']}`\n"
+        f"🎖 **Выданные роли:** {roles_str}"
+    )
+    return True, text
+
+
+async def process_user_sync(guild: discord.Guild, member: discord.Member) -> tuple[bool, str]:
+    """Syncs roles for an already verified Discord user."""
+    linked_nick = await db.get_discord_verification(member.id)
+    if not linked_nick:
+        return False, "⚠️ **Вы ещё не привязали никнейм VimeWorld!**\nИспользуйте команду: `/verify ваш_ник`"
+
+    profile = await checker.fetch_full_player_profile(linked_nick)
+    if not profile.get("exists"):
+        return False, f"❌ Ошибка обновления: ник `{linked_nick}` не найден!"
+
+    assigned_roles = await sync_user_roles(guild, member, profile)
+    roles_str = ", ".join([f"`{r}`" for r in assigned_roles]) if assigned_roles else "нет"
+
+    text = (
+        f"🔄 **Роли успешно синхронизированы!**\n\n"
+        f"👤 Ник: `{profile['nickname']}` | Уровень: `{profile['level']}` | 🔄 Перерождений: `{profile['sl_rebirth']}`\n"
+        f"🎖 **Обновлённые роли:** {roles_str}"
+    )
+    return True, text
 
 
 async def find_active_human_voice_channel():
@@ -342,7 +509,7 @@ def generate_admin_embed(settings: dict) -> discord.Embed:
     return embed
 
 
-# Register Discord Slash Commands (ALL USERS ALLOWED FOR /player AND /compare)
+# Register Discord Slash Commands
 if tree:
     @tree.command(name="admin", description="Админ-панель настройки голосовых уведомлений (только для администратора)")
     async def slash_admin(interaction: discord.Interaction):
@@ -355,6 +522,19 @@ if tree:
         embed = generate_admin_embed(settings)
         view = DiscordAdminView(admin_id=interaction.user.id, settings=settings)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @tree.command(name="verify", description="Привязать никнейм VimeWorld и автоматически получить роли на сервере")
+    @app_commands.describe(nickname="Ваш никнейм на VimeWorld")
+    async def slash_verify(interaction: discord.Interaction, nickname: str):
+        await interaction.response.defer()
+        success, msg_out = await process_user_verification(interaction.guild, interaction.user, nickname)
+        await interaction.followup.send(msg_out)
+
+    @tree.command(name="sync", description="Обновить ваши роли Discord на основе текущих успехов VimeWorld")
+    async def slash_sync(interaction: discord.Interaction):
+        await interaction.response.defer()
+        success, msg_out = await process_user_sync(interaction.guild, interaction.user)
+        await interaction.followup.send(msg_out)
 
     @tree.command(name="player", description="Посмотреть статистику и профиль Solo Leveling игрока VimeWorld")
     @app_commands.describe(nickname="Никнейм игрока на VimeWorld")

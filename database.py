@@ -1,56 +1,54 @@
 import os
 import aiosqlite
 import logging
-from config import DB_PATH
 
 logger = logging.getLogger(__name__)
 
+DB_PATH = os.path.join("data", "bot_database.db")
+
 async def init_db():
-    """Initializes SQLite database tables and ensures target directory exists."""
-    db_dir = os.path.dirname(DB_PATH)
-    if db_dir:
-        os.makedirs(db_dir, exist_ok=True)
-        
+    """Initializes SQLite database and creates tables if not present."""
+    os.makedirs("data", exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
+        # Users table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
-                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                user_id INTEGER,
-                target_nick TEXT,
-                PRIMARY KEY (user_id, target_nick)
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS player_status (
-                target_nick TEXT PRIMARY KEY,
-                is_online INTEGER,
-                last_state TEXT DEFAULT 'OFFLINE',
-                last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS discord_settings (
-                setting_key TEXT PRIMARY KEY,
-                setting_value INTEGER DEFAULT 1
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Ensure column last_state exists for database migrations
-        try:
-            await db.execute("ALTER TABLE player_status ADD COLUMN last_state TEXT DEFAULT 'OFFLINE'")
-        except Exception:
-            pass
-            
+        # Subscriptions table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                user_id INTEGER,
+                sub_key TEXT,
+                PRIMARY KEY (user_id, sub_key)
+            )
+        """)
+
+        # Discord settings table (for audio & alerts toggle)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS discord_settings (
+                key TEXT PRIMARY KEY,
+                value INTEGER DEFAULT 1
+            )
+        """)
+
+        # Discord user verifications table (Discord ID -> VimeWorld Nickname)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS discord_verifications (
+                discord_user_id INTEGER PRIMARY KEY,
+                vimeworld_nickname TEXT,
+                verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         await db.commit()
-    logger.info(f"Database initialized successfully at: {DB_PATH}")
+    logger.info("Database initialized successfully.")
 
 async def add_user(user_id: int):
-    """Registers a new user if not exists."""
+    """Adds a new Telegram user to database if not exists."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
@@ -58,155 +56,115 @@ async def add_user(user_id: int):
         )
         await db.commit()
 
-async def subscribe_user(user_id: int, target_nick: str):
-    """Subscribes a user to monitor a specific player or dungeon."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT OR IGNORE INTO subscriptions (user_id, target_nick) VALUES (?, ?)",
-            (user_id, target_nick)
-        )
-        await db.commit()
-
-async def unsubscribe_user(user_id: int, target_nick: str):
-    """Unsubscribes a user from monitoring a specific player or dungeon."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "DELETE FROM subscriptions WHERE user_id = ? AND target_nick = ?",
-            (user_id, target_nick)
-        )
-        await db.commit()
-
-async def is_subscribed(user_id: int, target_nick: str) -> bool:
-    """Checks if a user is subscribed to a player or dungeon."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
-            "SELECT 1 FROM subscriptions WHERE user_id = ? AND target_nick = ?",
-            (user_id, target_nick)
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row is not None
-
 async def get_user_subscriptions(user_id: int) -> list:
-    """Gets list of target nicks a user is subscribed to."""
+    """Gets list of sub_keys for a given user."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT target_nick FROM subscriptions WHERE user_id = ?",
+            "SELECT sub_key FROM subscriptions WHERE user_id = ?",
             (user_id,)
         ) as cursor:
             rows = await cursor.fetchall()
-            return [row[0] for row in rows]
+            return [r[0] for r in rows]
 
-async def get_subscribers_for_player(target_nick: str) -> list:
-    """Gets all user_ids subscribed to a specific player or dungeon."""
+async def is_subscribed(user_id: int, sub_key: str) -> bool:
+    """Checks if user is subscribed to a sub_key."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT user_id FROM subscriptions WHERE target_nick = ?",
-            (target_nick,)
-        ) as cursor:
-            rows = await cursor.fetchall()
-            return [row[0] for row in rows]
-
-async def has_player_state(target_nick: str) -> bool:
-    """Checks if player state exists in database."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
-            "SELECT 1 FROM player_status WHERE target_nick = ?",
-            (target_nick,)
+            "SELECT 1 FROM subscriptions WHERE user_id = ? AND sub_key = ?",
+            (user_id, sub_key)
         ) as cursor:
             row = await cursor.fetchone()
             return row is not None
 
-async def get_player_last_state(target_nick: str) -> str:
-    """Gets the last recorded state of a player ('OFFLINE', 'LOBBY', 'SOLOLEVELING', 'OTHER_GAME')."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
-            "SELECT last_state FROM player_status WHERE target_nick = ?",
-            (target_nick,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row[0] if (row and row[0]) else "OFFLINE"
-
-async def update_player_last_state(target_nick: str, state: str, is_online: bool):
-    """Updates the recorded state for a player."""
+async def subscribe_user(user_id: int, sub_key: str):
+    """Subscribes user to a sub_key."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            """
-            INSERT INTO player_status (target_nick, is_online, last_state, last_checked)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(target_nick) DO UPDATE SET
-                is_online = excluded.is_online,
-                last_state = excluded.last_state,
-                last_checked = CURRENT_TIMESTAMP
-            """,
-            (target_nick, 1 if is_online else 0, state)
+            "INSERT OR IGNORE INTO subscriptions (user_id, sub_key) VALUES (?, ?)",
+            (user_id, sub_key)
         )
         await db.commit()
 
-# --- DISCORD VOICE SETTINGS HELPERS ---
-
-async def get_discord_setting(key: str, default_val: int = 1) -> bool:
-    """Returns True if the Discord voice setting is enabled, False otherwise."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
-            "SELECT setting_value FROM discord_settings WHERE setting_key = ?",
-            (key,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            if row is not None:
-                return bool(row[0])
-            return bool(default_val)
-
-async def set_discord_setting(key: str, value: int):
-    """Sets a Discord voice setting (1 for ON, 0 for OFF)."""
+async def unsubscribe_user(user_id: int, sub_key: str):
+    """Unsubscribes user from a sub_key."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            """
-            INSERT INTO discord_settings (setting_key, setting_value)
-            VALUES (?, ?)
-            ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value
-            """,
-            (key, 1 if value else 0)
+            "DELETE FROM subscriptions WHERE user_id = ? AND sub_key = ?",
+            (user_id, sub_key)
         )
         await db.commit()
 
-async def get_all_discord_settings() -> dict:
-    """Returns dict of all saved Discord settings."""
-    defaults = {
-        "sound_dungeon_hard": 1,
-        "sound_dungeon_medium": 1,
-        "sound_dungeon_jeju": 1,
-        "sound_MrLalalashkaXXL": 1,
-        "sound_F1xPlay_": 1,
-    }
+async def get_all_subscribers_for_key(sub_key: str) -> list:
+    """Gets all user_ids subscribed to a sub_key."""
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT setting_key, setting_value FROM discord_settings") as cursor:
+        async with db.execute(
+            "SELECT user_id FROM subscriptions WHERE sub_key = ?",
+            (sub_key,)
+        ) as cursor:
             rows = await cursor.fetchall()
-            for row in rows:
-                defaults[row[0]] = int(row[1])
-    return defaults
-
-# --- ADMIN STATS FUNCTIONS ---
+            return [r[0] for r in rows]
 
 async def get_total_users_count() -> int:
-    """Returns total count of registered bot users."""
+    """Returns total count of registered Telegram users."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT COUNT(*) FROM users") as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
 async def get_active_subscribers_count() -> int:
-    """Returns count of unique users who have at least 1 active subscription."""
+    """Returns count of users with at least 1 active subscription."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT COUNT(DISTINCT user_id) FROM subscriptions") as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
 async def get_subscriptions_breakdown() -> dict:
-    """Returns dictionary mapping target_nick to subscriber count."""
-    result = {}
+    """Returns dict of count of subscribers for each key."""
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT target_nick, COUNT(*) FROM subscriptions GROUP BY target_nick") as cursor:
+        async with db.execute("SELECT sub_key, COUNT(user_id) FROM subscriptions GROUP BY sub_key") as cursor:
             rows = await cursor.fetchall()
-            for row in rows:
-                result[row[0]] = row[1]
-    return result
+            return {r[0]: r[1] for r in rows}
+
+# DISCORD SETTINGS DB FUNCTIONS
+async def get_discord_setting(key: str, default: int = 1) -> int:
+    """Gets Discord setting value (1 for ON, 0 for OFF)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT value FROM discord_settings WHERE key = ?", (key,)) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row is not None else default
+
+async def set_discord_setting(key: str, value: int):
+    """Sets Discord setting value."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO discord_settings (key, value) VALUES (?, ?)",
+            (key, value)
+        )
+        await db.commit()
+
+async def get_all_discord_settings() -> dict:
+    """Returns all Discord settings as dict."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT key, value FROM discord_settings") as cursor:
+            rows = await cursor.fetchall()
+            return {r[0]: r[1] for r in rows}
+
+# DISCORD VERIFICATION DB FUNCTIONS
+async def save_discord_verification(discord_user_id: int, vimeworld_nickname: str):
+    """Saves linked VimeWorld nickname for Discord user ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO discord_verifications (discord_user_id, vimeworld_nickname) VALUES (?, ?)",
+            (discord_user_id, vimeworld_nickname)
+        )
+        await db.commit()
+
+async def get_discord_verification(discord_user_id: int) -> str:
+    """Gets linked VimeWorld nickname for Discord user ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT vimeworld_nickname FROM discord_verifications WHERE discord_user_id = ?",
+            (discord_user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
