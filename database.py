@@ -113,6 +113,10 @@ async def get_all_subscribers_for_key(sub_key: str) -> list:
             rows = await cursor.fetchall()
             return [r[0] for r in rows]
 
+async def get_subscribers_for_player(sub_key: str) -> list:
+    """Alias for get_all_subscribers_for_key."""
+    return await get_all_subscribers_for_key(sub_key)
+
 async def get_total_users_count() -> int:
     """Returns total count of registered Telegram users."""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -157,6 +161,10 @@ async def set_player_state(nickname: str, state: str):
             (nickname, state)
         )
         await db.commit()
+
+async def update_player_last_state(nickname: str, state: str, is_online: bool = False):
+    """Alias for set_player_state expected by monitor.py."""
+    await set_player_state(nickname, state)
 
 # DISCORD SETTINGS DB FUNCTIONS
 async def get_discord_setting(key: str, default: int = 1) -> int:
