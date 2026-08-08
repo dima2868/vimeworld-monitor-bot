@@ -7,6 +7,9 @@ import checker
 
 logger = logging.getLogger(__name__)
 
+# List of ignored AFK Voice Channel IDs
+EXCLUDED_AFK_CHANNEL_IDS = [553187808630538240]
+
 # Discord client & command tree placeholder
 discord_client = None
 voice_client = None
@@ -119,14 +122,23 @@ def is_discord_ready() -> bool:
 
 async def find_active_human_voice_channel():
     """
-    Finds a voice channel across all connected Discord servers (guilds)
-    that has at least 1 non-bot human member inside.
+    Finds an active voice channel across all connected Discord servers (guilds)
+    that has at least 1 non-bot human member inside, SKIPPING AFK channels.
     """
     if not is_discord_ready():
         return None
         
     for guild in discord_client.guilds:
+        # Get native AFK channel ID if set for guild
+        guild_afk_id = guild.afk_channel.id if guild.afk_channel else None
+        
         for vc in guild.voice_channels:
+            # Skip explicit AFK channel ID, guild AFK channel, or channels named "afk"
+            if vc.id in EXCLUDED_AFK_CHANNEL_IDS or vc.id == guild_afk_id:
+                continue
+            if "afk" in vc.name.lower() or "афк" in vc.name.lower():
+                continue
+                
             human_members = [m for m in vc.members if not m.bot]
             if len(human_members) > 0:
                 return vc
@@ -157,7 +169,7 @@ async def get_discord_debug_info() -> str:
         humans = [m.display_name for m in active_vc.members if not m.bot]
         text += f"🔊 <b>Найден активный войс:</b> {active_vc.name} (Людей: {len(humans)} - {', '.join(humans)})\n"
     else:
-        text += "🔇 <b>Никого нет в голосовых каналах.</b> Зайдите в любой голосовой канал на сервере для теста!\n"
+        text += "🔇 <b>Никого нет в активных голосовых каналах (AFK каналы игнорируются).</b> Зайдите в любой активный войс для теста!\n"
         
     return text
 
@@ -377,7 +389,7 @@ if tree:
 async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
     """
     Plays an MP3/OGG sound file in the active Discord Voice Channel ONLY IF:
-    1. At least 1 human is inside a voice channel.
+    1. At least 1 human is inside a non-AFK voice channel.
     2. The setting for this sound is enabled by the admin.
     """
     global voice_client
@@ -408,10 +420,10 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
             logger.info(msg)
             return False, msg
 
-    # Check if any voice channel has active human members
+    # Check if any non-AFK voice channel has active human members
     target_vc = await find_active_human_voice_channel()
     if not target_vc:
-        msg = "🔇 Ни один человек не найден ни в одном голосовом канале! Зайдите в любой войс-канал на сервере и повторите тест."
+        msg = "🔇 Ни один человек не найден в активных голосовых каналах (AFK каналы игнорируются)! Зайдите в активный войс и повторите тест."
         logger.info(f"Skipping Discord voice alert '{sound_filename}': {msg}")
         if voice_client and voice_client.is_connected():
             try:
