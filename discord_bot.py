@@ -677,7 +677,7 @@ def generate_admin_embed(settings: dict) -> discord.Embed:
     return embed
 
 
-# Register Discord Slash Commands
+# Register Discord Slash Commands (ALL EPHEMERAL RESPONSES FOR PRIVACY)
 if tree:
     @tree.command(name="admin", description="Админ-панель настройки голосовых уведомлений (только для администратора)")
     async def slash_admin(interaction: discord.Interaction):
@@ -698,51 +698,51 @@ if tree:
             await interaction.response.send_message("⛔ **Эта команда доступна только администратору.**", ephemeral=True)
             return
             
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         embed_out = await process_user_unverify(interaction.guild, member)
-        await interaction.followup.send(embed=embed_out)
+        await interaction.followup.send(embed=embed_out, ephemeral=True)
 
     @tree.command(name="verify", description="Привязать никнейм VimeWorld и автоматически получить роли на сервере")
     @app_commands.describe(nickname="Ваш никнейм на VimeWorld")
     async def slash_verify(interaction: discord.Interaction, nickname: str):
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         embed_out = await process_user_verification(interaction.guild, interaction.user, nickname)
-        await interaction.followup.send(embed=embed_out)
+        await interaction.followup.send(embed=embed_out, ephemeral=True)
 
     @tree.command(name="sync", description="Обновить ваши роли Discord на основе текущих успехов VimeWorld")
     async def slash_sync(interaction: discord.Interaction):
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         embed_out = await process_user_sync(interaction.guild, interaction.user)
-        await interaction.followup.send(embed=embed_out)
+        await interaction.followup.send(embed=embed_out, ephemeral=True)
 
     @tree.command(name="player", description="Посмотреть статистику и профиль Solo Leveling игрока VimeWorld")
     @app_commands.describe(nickname="Никнейм игрока на VimeWorld")
     async def slash_player(interaction: discord.Interaction, nickname: str):
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         profile = await checker.fetch_full_player_profile(nickname)
         if not profile.get("exists"):
-            await interaction.followup.send(f"❌ Игрок `{nickname}` не найден на VimeWorld!")
+            await interaction.followup.send(f"❌ Игрок `{nickname}` не найден на VimeWorld!", ephemeral=True)
             return
         embed = build_player_embed(profile)
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @tree.command(name="compare", description="Сравнить статистику двух игроков Solo Leveling на VimeWorld")
     @app_commands.describe(player1="Никнейм первого игрока", player2="Никнейм второго игрока")
     async def slash_compare(interaction: discord.Interaction, player1: str, player2: str):
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         p1_task = checker.fetch_full_player_profile(player1)
         p2_task = checker.fetch_full_player_profile(player2)
         p1, p2 = await asyncio.gather(p1_task, p2_task)
 
         if not p1.get("exists"):
-            await interaction.followup.send(f"❌ Игрок `{player1}` не найден на VimeWorld!")
+            await interaction.followup.send(f"❌ Игрок `{player1}` не найден на VimeWorld!", ephemeral=True)
             return
         if not p2.get("exists"):
-            await interaction.followup.send(f"❌ Игрок `{player2}` не найден на VimeWorld!")
+            await interaction.followup.send(f"❌ Игрок `{player2}` не найден на VimeWorld!", ephemeral=True)
             return
 
         embed = build_compare_embed(p1, p2)
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
