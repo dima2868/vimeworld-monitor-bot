@@ -160,8 +160,8 @@ try:
                 await message.channel.send("❌ **Укажите участника (упоминание или ID)!** Пример: `!unverify @User`")
                 return
 
-            success, msg_out = await process_user_unverify(message.guild, target_member)
-            await message.channel.send(msg_out)
+            embed_out = await process_user_unverify(message.guild, target_member)
+            await message.channel.send(embed=embed_out)
             return
 
         # 3. Verify text command (!verify nick or /verify nick or verify nick)
@@ -169,16 +169,16 @@ try:
             parts = content.split(maxsplit=1)
             if len(parts) > 1:
                 nick = parts[1].strip()
-                success, msg_out = await process_user_verification(message.guild, message.author, nick)
-                await message.channel.send(msg_out)
+                embed_out = await process_user_verification(message.guild, message.author, nick)
+                await message.channel.send(embed=embed_out)
             else:
                 await message.channel.send("🔗 **Укажите ваш никнейм VimeWorld!** Пример: `!verify dima_286812312`")
             return
 
         # 4. Sync text command (!sync or /sync or sync)
         if lower_content in ("!sync", "/sync", "sync"):
-            success, msg_out = await process_user_sync(message.guild, message.author)
-            await message.channel.send(msg_out)
+            embed_out = await process_user_sync(message.guild, message.author)
+            await message.channel.send(embed=embed_out)
             return
 
         # 5. Player Profile text command - OPEN TO ALL USERS (!player nick or /player nick or player nick)
@@ -344,51 +344,84 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     return assigned_role_names
 
 
-async def process_user_verification(guild: discord.Guild, member: discord.Member, nickname: str) -> tuple[bool, str]:
-    """Verifies VimeWorld nickname and updates Discord roles."""
+async def process_user_verification(guild: discord.Guild, member: discord.Member, nickname: str) -> discord.Embed:
+    """Verifies VimeWorld nickname and updates Discord roles, returning rich Embed."""
     profile = await checker.fetch_full_player_profile(nickname)
     if not profile.get("exists"):
-        return False, f"❌ Игрок `{nickname}` не найден на VimeWorld!"
+        embed_err = discord.Embed(
+            title="❌ Ошибка верификации",
+            description=f"Игрок `{nickname}` не найден на VimeWorld!",
+            color=0x992D22
+        )
+        return embed_err
 
     await db.save_discord_verification(member.id, profile["nickname"])
     assigned_roles = await sync_user_roles(guild, member, profile)
     
     roles_str = ", ".join([f"`{r}`" for r in assigned_roles]) if assigned_roles else "нет"
     
-    text = (
-        f"✅ **Успешная верификация!**\n\n"
-        f"👤 Аккаунт **{member.mention}** привязан к VimeWorld нику `{profile['nickname']}`\n"
-        f"🔄 Перерождений: `{profile['sl_rebirth']}` (Охотник `{profile['sl_rebirth_rank']}`)\n"
-        f"🎖 **Выданные роли:** {roles_str}"
+    embed = discord.Embed(
+        title="✅ Успешная верификация VimeWorld",
+        color=0x2ECC71
     )
-    return True, text
+    embed.set_thumbnail(url=profile['head_url'])
+    embed.add_field(name="👤 Аккаунт Discord", value=f"{member.mention}", inline=True)
+    embed.add_field(name="🎮 Никнейм", value=f"`{profile['nickname']}`", inline=True)
+    embed.add_field(name="📊 Уровень VimeWorld", value=f"`{profile['level']}` ур. ({profile['level_pct']}%)", inline=True)
+    embed.add_field(name="🔄 Перерождения", value=f"`{profile['sl_rebirth']}`", inline=True)
+    embed.add_field(name="⚔️ Ранг Охотника", value=f"`Охотник {profile['sl_rebirth_rank']}`", inline=True)
+    embed.add_field(name="⚡ Сила удара", value=f"`{profile['sl_damage_formatted']}`", inline=True)
+    embed.add_field(name="🎖 Выданные роли", value=roles_str, inline=False)
+    embed.set_footer(text="VimeWorld Solo Leveling Integration")
+    return embed
 
 
-async def process_user_sync(guild: discord.Guild, member: discord.Member) -> tuple[bool, str]:
-    """Syncs roles for an already verified Discord user."""
+async def process_user_sync(guild: discord.Guild, member: discord.Member) -> discord.Embed:
+    """Syncs roles for an already verified Discord user, returning rich Embed."""
     linked_nick = await db.get_discord_verification(member.id)
     if not linked_nick:
-        return False, "⚠️ **Вы ещё не привязали никнейм VimeWorld!**\nИспользуйте команду: `/verify ваш_ник`"
+        embed_err = discord.Embed(
+            title="⚠️ Верификация не найдена",
+            description="Вы ещё не привязали никнейм VimeWorld!\nИспользуйте команду: `/verify ваш_ник`",
+            color=0xF1C40F
+        )
+        return embed_err
 
     profile = await checker.fetch_full_player_profile(linked_nick)
     if not profile.get("exists"):
-        return False, f"❌ Ошибка обновления: ник `{linked_nick}` не найден!"
+        embed_err = discord.Embed(
+            title="❌ Ошибка синхронизации",
+            description=f"Никнейм `{linked_nick}` не найден на VimeWorld!",
+            color=0x992D22
+        )
+        return embed_err
 
     assigned_roles = await sync_user_roles(guild, member, profile)
     roles_str = ", ".join([f"`{r}`" for r in assigned_roles]) if assigned_roles else "нет"
 
-    text = (
-        f"🔄 **Роли успешно синхронизированы!**\n\n"
-        f"👤 Ник: `{profile['nickname']}` | 🔄 Перерождений: `{profile['sl_rebirth']}` (Охотник `{profile['sl_rebirth_rank']}`)\n"
-        f"🎖 **Обновлённые роли:** {roles_str}"
+    embed = discord.Embed(
+        title="🔄 Синхронизация ролей VimeWorld",
+        color=0x3498DB
     )
-    return True, text
+    embed.set_thumbnail(url=profile['head_url'])
+    embed.add_field(name="👤 Участник", value=f"{member.mention}", inline=True)
+    embed.add_field(name="🎮 Никнейм", value=f"`{profile['nickname']}`", inline=True)
+    embed.add_field(name="🔄 Перерождения", value=f"`{profile['sl_rebirth']}` (Охотник `{profile['sl_rebirth_rank']}`)", inline=True)
+    embed.add_field(name="⚡ Сила удара", value=f"`{profile['sl_damage_formatted']}`", inline=True)
+    embed.add_field(name="🎖 Обновлённые роли", value=roles_str, inline=False)
+    embed.set_footer(text="VimeWorld Solo Leveling Integration")
+    return embed
 
 
-async def process_user_unverify(guild: discord.Guild, target_member: discord.Member) -> tuple[bool, str]:
-    """Removes VimeWorld verification and strips all bot-assigned roles."""
+async def process_user_unverify(guild: discord.Guild, target_member: discord.Member) -> discord.Embed:
+    """Removes VimeWorld verification and strips all bot-assigned roles, returning rich Embed."""
     if not target_member:
-        return False, "❌ Участник не найден на сервере!"
+        embed_err = discord.Embed(
+            title="❌ Ошибка",
+            description="Участник не найден на сервере!",
+            color=0x992D22
+        )
+        return embed_err
 
     # 1. Delete from database
     await db.delete_discord_verification(target_member.id)
@@ -412,12 +445,14 @@ async def process_user_unverify(guild: discord.Guild, target_member: discord.Mem
 
     roles_str = ", ".join([f"`{r}`" for r in removed_role_names]) if removed_role_names else "нет"
 
-    text = (
-        f"🗑 **Верификация отменена администратором!**\n\n"
-        f"👤 Участник: **{target_member.mention}** (`{target_member.id}`)\n"
-        f"❌ **Удаленные роли VimeWorld:** {roles_str}"
+    embed = discord.Embed(
+        title="🗑 Отмена верификации VimeWorld",
+        color=0xE74C3C
     )
-    return True, text
+    embed.add_field(name="👤 Участник", value=f"{target_member.mention} (`{target_member.id}`)", inline=True)
+    embed.add_field(name="❌ Удаленные роли", value=roles_str, inline=False)
+    embed.set_footer(text="Панель Администратора")
+    return embed
 
 
 async def find_active_human_voice_channel():
@@ -664,21 +699,21 @@ if tree:
             return
             
         await interaction.response.defer()
-        success, msg_out = await process_user_unverify(interaction.guild, member)
-        await interaction.followup.send(msg_out)
+        embed_out = await process_user_unverify(interaction.guild, member)
+        await interaction.followup.send(embed=embed_out)
 
     @tree.command(name="verify", description="Привязать никнейм VimeWorld и автоматически получить роли на сервере")
     @app_commands.describe(nickname="Ваш никнейм на VimeWorld")
     async def slash_verify(interaction: discord.Interaction, nickname: str):
         await interaction.response.defer()
-        success, msg_out = await process_user_verification(interaction.guild, interaction.user, nickname)
-        await interaction.followup.send(msg_out)
+        embed_out = await process_user_verification(interaction.guild, interaction.user, nickname)
+        await interaction.followup.send(embed=embed_out)
 
     @tree.command(name="sync", description="Обновить ваши роли Discord на основе текущих успехов VimeWorld")
     async def slash_sync(interaction: discord.Interaction):
         await interaction.response.defer()
-        success, msg_out = await process_user_sync(interaction.guild, interaction.user)
-        await interaction.followup.send(msg_out)
+        embed_out = await process_user_sync(interaction.guild, interaction.user)
+        await interaction.followup.send(embed=embed_out)
 
     @tree.command(name="player", description="Посмотреть статистику и профиль Solo Leveling игрока VimeWorld")
     @app_commands.describe(nickname="Никнейм игрока на VimeWorld")
