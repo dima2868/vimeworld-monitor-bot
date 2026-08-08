@@ -32,49 +32,49 @@ VIME_RANK_ROLES = [
     {"name": "👤 Игрок VimeWorld", "color_rgb": (149, 165, 166), "match": "USER"},
 ]
 
-# Solo Leveling Rebirth Ranks List (SSS down to F)
+# Solo Leveling Rebirth Ranks List ("Охотник Ранг SSS" down to "Охотник Ранг F")
 REBIRTH_RANK_ROLES = [
-    {"title": "SSS", "name": "⚔️ Rank SSS", "color_rgb": (255, 0, 0)},
-    {"title": "SS+", "name": "⚔️ Rank SS+", "color_rgb": (255, 69, 0)},
-    {"title": "SS", "name": "⚔️ Rank SS", "color_rgb": (255, 140, 0)},
-    {"title": "S+", "name": "⚔️ Rank S+", "color_rgb": (255, 215, 0)},
-    {"title": "S", "name": "⚔️ Rank S", "color_rgb": (255, 255, 0)},
-    {"title": "AAA+", "name": "⚔️ Rank AAA+", "color_rgb": (173, 255, 47)},
-    {"title": "AAA", "name": "⚔️ Rank AAA", "color_rgb": (0, 255, 0)},
-    {"title": "AA+", "name": "⚔️ Rank AA+", "color_rgb": (0, 255, 127)},
-    {"title": "AA", "name": "⚔️ Rank AA", "color_rgb": (0, 255, 255)},
-    {"title": "A+", "name": "⚔️ Rank A+", "color_rgb": (30, 144, 255)},
-    {"title": "A", "name": "⚔️ Rank A", "color_rgb": (0, 0, 255)},
-    {"title": "BBB+", "name": "⚔️ Rank BBB+", "color_rgb": (138, 43, 226)},
-    {"title": "BBB", "name": "⚔️ Rank BBB", "color_rgb": (147, 112, 219)},
-    {"title": "BB+", "name": "⚔️ Rank BB+", "color_rgb": (186, 85, 211)},
-    {"title": "BB", "name": "⚔️ Rank BB", "color_rgb": (218, 112, 214)},
-    {"title": "B+", "name": "⚔️ Rank B+", "color_rgb": (255, 20, 147)},
-    {"title": "B", "name": "⚔️ Rank B", "color_rgb": (255, 105, 180)},
-    {"title": "CCC+", "name": "⚔️ Rank CCC+", "color_rgb": (250, 128, 114)},
-    {"title": "CCC", "name": "⚔️ Rank CCC", "color_rgb": (233, 150, 122)},
-    {"title": "CC+", "name": "⚔️ Rank CC+", "color_rgb": (240, 128, 128)},
-    {"title": "CC", "name": "⚔️ Rank CC", "color_rgb": (205, 92, 92)},
-    {"title": "C+", "name": "⚔️ Rank C+", "color_rgb": (220, 20, 60)},
-    {"title": "C", "name": "⚔️ Rank C", "color_rgb": (178, 34, 34)},
-    {"title": "DDD+", "name": "⚔️ Rank DDD+", "color_rgb": (184, 134, 11)},
-    {"title": "DDD", "name": "⚔️ Rank DDD", "color_rgb": (218, 165, 32)},
-    {"title": "DD+", "name": "⚔️ Rank DD+", "color_rgb": (238, 232, 170)},
-    {"title": "DD", "name": "⚔️ Rank DD", "color_rgb": (189, 183, 107)},
-    {"title": "D+", "name": "⚔️ Rank D+", "color_rgb": (154, 205, 50)},
-    {"title": "D", "name": "⚔️ Rank D", "color_rgb": (85, 107, 47)},
-    {"title": "EEE+", "name": "⚔️ Rank EEE+", "color_rgb": (144, 238, 144)},
-    {"title": "EEE", "name": "⚔️ Rank EEE", "color_rgb": (152, 251, 152)},
-    {"title": "EE+", "name": "⚔️ Rank EE+", "color_rgb": (175, 238, 238)},
-    {"title": "EE", "name": "⚔️ Rank EE", "color_rgb": (0, 206, 209)},
-    {"title": "E+", "name": "⚔️ Rank E+", "color_rgb": (70, 130, 180)},
-    {"title": "E", "name": "⚔️ Rank E", "color_rgb": (100, 149, 237)},
-    {"title": "FFF+", "name": "⚔️ Rank FFF+", "color_rgb": (176, 196, 222)},
-    {"title": "FFF", "name": "⚔️ Rank FFF", "color_rgb": (119, 136, 153)},
-    {"title": "FF+", "name": "⚔️ Rank FF+", "color_rgb": (112, 128, 144)},
-    {"title": "FF", "name": "⚔️ Rank FF", "color_rgb": (105, 105, 105)},
-    {"title": "F+", "name": "⚔️ Rank F+", "color_rgb": (128, 128, 128)},
-    {"title": "F", "name": "⚔️ Rank F", "color_rgb": (169, 169, 169)},
+    {"title": "SSS", "name": "⚔️ Охотник Ранг SSS", "color_rgb": (255, 0, 0)},
+    {"title": "SS+", "name": "⚔️ Охотник Ранг SS+", "color_rgb": (255, 69, 0)},
+    {"title": "SS", "name": "⚔️ Охотник Ранг SS", "color_rgb": (255, 140, 0)},
+    {"title": "S+", "name": "⚔️ Охотник Ранг S+", "color_rgb": (255, 215, 0)},
+    {"title": "S", "name": "⚔️ Охотник Ранг S", "color_rgb": (255, 255, 0)},
+    {"title": "AAA+", "name": "⚔️ Охотник Ранг AAA+", "color_rgb": (173, 255, 47)},
+    {"title": "AAA", "name": "⚔️ Охотник Ранг AAA", "color_rgb": (0, 255, 0)},
+    {"title": "AA+", "name": "⚔️ Охотник Ранг AA+", "color_rgb": (0, 255, 127)},
+    {"title": "AA", "name": "⚔️ Охотник Ранг AA", "color_rgb": (0, 255, 255)},
+    {"title": "A+", "name": "⚔️ Охотник Ранг A+", "color_rgb": (30, 144, 255)},
+    {"title": "A", "name": "⚔️ Охотник Ранг A", "color_rgb": (0, 0, 255)},
+    {"title": "BBB+", "name": "⚔️ Охотник Ранг BBB+", "color_rgb": (138, 43, 226)},
+    {"title": "BBB", "name": "⚔️ Охотник Ранг BBB", "color_rgb": (147, 112, 219)},
+    {"title": "BB+", "name": "⚔️ Охотник Ранг BB+", "color_rgb": (186, 85, 211)},
+    {"title": "BB", "name": "⚔️ Охотник Ранг BB", "color_rgb": (218, 112, 214)},
+    {"title": "B+", "name": "⚔️ Охотник Ранг B+", "color_rgb": (255, 20, 147)},
+    {"title": "B", "name": "⚔️ Охотник Ранг B", "color_rgb": (255, 105, 180)},
+    {"title": "CCC+", "name": "⚔️ Охотник Ранг CCC+", "color_rgb": (250, 128, 114)},
+    {"title": "CCC", "name": "⚔️ Охотник Ранг CCC", "color_rgb": (233, 150, 122)},
+    {"title": "CC+", "name": "⚔️ Охотник Ранг CC+", "color_rgb": (240, 128, 128)},
+    {"title": "CC", "name": "⚔️ Охотник Ранг CC", "color_rgb": (205, 92, 92)},
+    {"title": "C+", "name": "⚔️ Охотник Ранг C+", "color_rgb": (220, 20, 60)},
+    {"title": "C", "name": "⚔️ Охотник Ранг C", "color_rgb": (178, 34, 34)},
+    {"title": "DDD+", "name": "⚔️ Охотник Ранг DDD+", "color_rgb": (184, 134, 11)},
+    {"title": "DDD", "name": "⚔️ Охотник Ранг DDD", "color_rgb": (218, 165, 32)},
+    {"title": "DD+", "name": "⚔️ Охотник Ранг DD+", "color_rgb": (238, 232, 170)},
+    {"title": "DD", "name": "⚔️ Охотник Ранг DD", "color_rgb": (189, 183, 107)},
+    {"title": "D+", "name": "⚔️ Охотник Ранг D+", "color_rgb": (154, 205, 50)},
+    {"title": "D", "name": "⚔️ Охотник Ранг D", "color_rgb": (85, 107, 47)},
+    {"title": "EEE+", "name": "⚔️ Охотник Ранг EEE+", "color_rgb": (144, 238, 144)},
+    {"title": "EEE", "name": "⚔️ Охотник Ранг EEE", "color_rgb": (152, 251, 152)},
+    {"title": "EE+", "name": "⚔️ Охотник Ранг EE+", "color_rgb": (175, 238, 238)},
+    {"title": "EE", "name": "⚔️ Охотник Ранг EE", "color_rgb": (0, 206, 209)},
+    {"title": "E+", "name": "⚔️ Охотник Ранг E+", "color_rgb": (70, 130, 180)},
+    {"title": "E", "name": "⚔️ Охотник Ранг E", "color_rgb": (100, 149, 237)},
+    {"title": "FFF+", "name": "⚔️ Охотник Ранг FFF+", "color_rgb": (176, 196, 222)},
+    {"title": "FFF", "name": "⚔️ Охотник Ранг FFF", "color_rgb": (119, 136, 153)},
+    {"title": "FF+", "name": "⚔️ Охотник Ранг FF+", "color_rgb": (112, 128, 144)},
+    {"title": "FF", "name": "⚔️ Охотник Ранг FF", "color_rgb": (105, 105, 105)},
+    {"title": "F+", "name": "⚔️ Охотник Ранг F+", "color_rgb": (128, 128, 128)},
+    {"title": "F", "name": "⚔️ Охотник Ранг F", "color_rgb": (169, 169, 169)},
 ]
 
 ALL_MANAGED_ROLE_NAMES = [r["name"] for r in VIME_RANK_ROLES] + [r["name"] for r in REBIRTH_RANK_ROLES]
@@ -285,7 +285,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     """
     Assigns ONLY 2 roles:
     1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Premium)
-    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Rank SS, Rank SSS, Rank F)
+    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник Ранг SS, Охотник Ранг SSS, Охотник Ранг F)
     """
     if not guild or not member:
         return []
@@ -323,7 +323,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
                 assigned_role_names.append(role.name)
 
     # Roles to remove (any old rank or rebirth roles or legacy level roles)
-    roles_to_remove = [r for r in member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name) and r not in roles_to_add]
+    roles_to_remove = [r for r in member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name or "Rank " in r.name) and r not in roles_to_add]
 
     try:
         if roles_to_remove:
@@ -358,7 +358,7 @@ async def process_user_verification(guild: discord.Guild, member: discord.Member
     text = (
         f"✅ **Успешная верификация!**\n\n"
         f"👤 Аккаунт **{member.mention}** привязан к VimeWorld нику `{profile['nickname']}`\n"
-        f"🔄 Перерождений: `{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)\n"
+        f"🔄 Перерождений: `{profile['sl_rebirth']}` (Охотник Ранг `{profile['sl_rebirth_rank']}`)\n"
         f"🎖 **Выданные роли:** {roles_str}"
     )
     return True, text
@@ -379,7 +379,7 @@ async def process_user_sync(guild: discord.Guild, member: discord.Member) -> tup
 
     text = (
         f"🔄 **Роли успешно синхронизированы!**\n\n"
-        f"👤 Ник: `{profile['nickname']}` | 🔄 Перерождений: `{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)\n"
+        f"👤 Ник: `{profile['nickname']}` | 🔄 Перерождений: `{profile['sl_rebirth']}` (Охотник Ранг `{profile['sl_rebirth_rank']}`)\n"
         f"🎖 **Обновлённые роли:** {roles_str}"
     )
     return True, text
@@ -394,7 +394,7 @@ async def process_user_unverify(guild: discord.Guild, target_member: discord.Mem
     await db.delete_discord_verification(target_member.id)
 
     # 2. Find and strip all VimeWorld managed roles
-    roles_to_remove = [r for r in target_member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name)]
+    roles_to_remove = [r for r in target_member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name or "Rank " in r.name)]
     removed_role_names = [r.name for r in roles_to_remove]
 
     try:
@@ -492,7 +492,7 @@ def build_player_embed(profile: dict) -> discord.Embed:
     embed.add_field(
         name="🗡 Solo Leveling Статистика",
         value=(
-            f"🔄 **Перерождений:** `{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)\n"
+            f"🔄 **Перерождений:** `{profile['sl_rebirth']}` (Охотник Ранг `{profile['sl_rebirth_rank']}`)\n"
             f"⚡ **Сила удара:** `{profile['sl_damage_formatted']}`\n"
             f"💰 **Золото:** `{profile['sl_gold_formatted']}`\n"
             f"🎯 **Очки улучшений:** `{profile['sl_upgrade_points']}`"
@@ -531,7 +531,7 @@ def build_compare_embed(p1: dict, p2: dict) -> discord.Embed:
     )
     embed.add_field(
         name="🔄 Перерождения",
-        value=f"• **{nick1}:** `{p1['sl_rebirth']}` (Ранг: `{p1['sl_rebirth_rank']}`){icon_reb1}\n• **{nick2}:** `{p2['sl_rebirth']}` (Ранг: `{p2['sl_rebirth_rank']}`){icon_reb2}",
+        value=f"• **{nick1}:** `{p1['sl_rebirth']}` (Охотник Ранг `{p1['sl_rebirth_rank']}`){icon_reb1}\n• **{nick2}:** `{p2['sl_rebirth']}` (Охотник Ранг `{p2['sl_rebirth_rank']}`){icon_reb2}",
         inline=False
     )
     embed.add_field(
