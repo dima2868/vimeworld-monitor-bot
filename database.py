@@ -218,3 +218,10 @@ async def delete_discord_verification(discord_user_id: int):
             (discord_user_id,)
         )
         await db.commit()
+
+async def get_all_discord_verifications() -> list:
+    """Returns all verified Discord user records as list of (discord_user_id, vimeworld_nickname)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT discord_user_id, vimeworld_nickname FROM discord_verifications") as cursor:
+            rows = await cursor.fetchall()
+            return rows

@@ -15,34 +15,69 @@ discord_client = None
 voice_client = None
 tree = None
 
-ROLE_CONFIGS = [
-    # Full VimeWorld Ranks List (Highest to lowest hierarchy)
-    {"name": "🔱 Ultimate", "color_rgb": (255, 0, 128), "type": "rank", "match": "ULTIMATE"},
-    {"name": "👑 Imperial", "color_rgb": (255, 215, 0), "type": "rank", "match": "IMPERIAL"},
-    {"name": "💥 Absolute", "color_rgb": (255, 50, 50), "type": "rank", "match": "ABSOLUTE"},
-    {"name": "🌌 Celestial", "color_rgb": (180, 100, 255), "type": "rank", "match": "CELESTIAL"},
-    {"name": "🔮 Eternal", "color_rgb": (147, 112, 219), "type": "rank", "match": "ETERNAL"},
-    {"name": "⚔️ Elite", "color_rgb": (220, 20, 60), "type": "rank", "match": "ELITE"},
-    {"name": "🛡 Thane", "color_rgb": (70, 130, 180), "type": "rank", "match": "THANE"},
-    {"name": "✨ Divine", "color_rgb": (255, 223, 0), "type": "rank", "match": "DIVINE"},
-    {"name": "☠️ Immortal", "color_rgb": (178, 34, 34), "type": "rank", "match": "IMMORTAL"},
-    {"name": "🙏 Holy", "color_rgb": (255, 182, 193), "type": "rank", "match": "HOLY"},
-    {"name": "⚡ Premium", "color_rgb": (155, 89, 182), "type": "rank", "match": "PREMIUM"},
-    {"name": "⭐ VIP", "color_rgb": (46, 204, 113), "type": "rank", "match": "VIP"},
-    {"name": "👤 Игрок VimeWorld", "color_rgb": (149, 165, 166), "type": "rank", "match": "USER"},
-
-    # Levels (Highest to lowest)
-    {"name": "🔥 Level 100+", "color_rgb": (255, 69, 0), "type": "level", "min_lvl": 100},
-    {"name": "💎 Level 50+", "color_rgb": (30, 144, 255), "type": "level", "min_lvl": 50},
-    {"name": "⭐ Level 20+", "color_rgb": (241, 196, 15), "type": "level", "min_lvl": 20},
-    {"name": "🌱 Level 1+", "color_rgb": (127, 140, 141), "type": "level", "min_lvl": 1},
-
-    # Rebirths (Highest to lowest)
-    {"name": "👑 Rebirth 50+", "color_rgb": (231, 76, 60), "type": "rebirth", "min_reb": 50},
-    {"name": "🗡 Rebirth 20+", "color_rgb": (192, 57, 43), "type": "rebirth", "min_reb": 20},
-    {"name": "⚔️ Rebirth 10+", "color_rgb": (26, 188, 156), "type": "rebirth", "min_reb": 10},
-    {"name": "🔰 Rebirth 1+", "color_rgb": (52, 152, 219), "type": "rebirth", "min_reb": 1},
+# Full VimeWorld Donator Ranks List (Highest to lowest hierarchy)
+VIME_RANK_ROLES = [
+    {"name": "🔱 Ultimate", "color_rgb": (255, 0, 128), "match": "ULTIMATE"},
+    {"name": "👑 Imperial", "color_rgb": (255, 215, 0), "match": "IMPERIAL"},
+    {"name": "💥 Absolute", "color_rgb": (255, 50, 50), "match": "ABSOLUTE"},
+    {"name": "🌌 Celestial", "color_rgb": (180, 100, 255), "match": "CELESTIAL"},
+    {"name": "🔮 Eternal", "color_rgb": (147, 112, 219), "match": "ETERNAL"},
+    {"name": "⚔️ Elite", "color_rgb": (220, 20, 60), "match": "ELITE"},
+    {"name": "🛡 Thane", "color_rgb": (70, 130, 180), "match": "THANE"},
+    {"name": "✨ Divine", "color_rgb": (255, 223, 0), "match": "DIVINE"},
+    {"name": "☠️ Immortal", "color_rgb": (178, 34, 34), "match": "IMMORTAL"},
+    {"name": "🙏 Holy", "color_rgb": (255, 182, 193), "match": "HOLY"},
+    {"name": "⚡ Premium", "color_rgb": (155, 89, 182), "match": "PREMIUM"},
+    {"name": "⭐ VIP", "color_rgb": (46, 204, 113), "match": "VIP"},
+    {"name": "👤 Игрок VimeWorld", "color_rgb": (149, 165, 166), "match": "USER"},
 ]
+
+# Solo Leveling Rebirth Ranks List (SSS down to F)
+REBIRTH_RANK_ROLES = [
+    {"title": "SSS", "name": "⚔️ Rank SSS", "color_rgb": (255, 0, 0)},
+    {"title": "SS+", "name": "⚔️ Rank SS+", "color_rgb": (255, 69, 0)},
+    {"title": "SS", "name": "⚔️ Rank SS", "color_rgb": (255, 140, 0)},
+    {"title": "S+", "name": "⚔️ Rank S+", "color_rgb": (255, 215, 0)},
+    {"title": "S", "name": "⚔️ Rank S", "color_rgb": (255, 255, 0)},
+    {"title": "AAA+", "name": "⚔️ Rank AAA+", "color_rgb": (173, 255, 47)},
+    {"title": "AAA", "name": "⚔️ Rank AAA", "color_rgb": (0, 255, 0)},
+    {"title": "AA+", "name": "⚔️ Rank AA+", "color_rgb": (0, 255, 127)},
+    {"title": "AA", "name": "⚔️ Rank AA", "color_rgb": (0, 255, 255)},
+    {"title": "A+", "name": "⚔️ Rank A+", "color_rgb": (30, 144, 255)},
+    {"title": "A", "name": "⚔️ Rank A", "color_rgb": (0, 0, 255)},
+    {"title": "BBB+", "name": "⚔️ Rank BBB+", "color_rgb": (138, 43, 226)},
+    {"title": "BBB", "name": "⚔️ Rank BBB", "color_rgb": (147, 112, 219)},
+    {"title": "BB+", "name": "⚔️ Rank BB+", "color_rgb": (186, 85, 211)},
+    {"title": "BB", "name": "⚔️ Rank BB", "color_rgb": (218, 112, 214)},
+    {"title": "B+", "name": "⚔️ Rank B+", "color_rgb": (255, 20, 147)},
+    {"title": "B", "name": "⚔️ Rank B", "color_rgb": (255, 105, 180)},
+    {"title": "CCC+", "name": "⚔️ Rank CCC+", "color_rgb": (250, 128, 114)},
+    {"title": "CCC", "name": "⚔️ Rank CCC", "color_rgb": (233, 150, 122)},
+    {"title": "CC+", "name": "⚔️ Rank CC+", "color_rgb": (240, 128, 128)},
+    {"title": "CC", "name": "⚔️ Rank CC", "color_rgb": (205, 92, 92)},
+    {"title": "C+", "name": "⚔️ Rank C+", "color_rgb": (220, 20, 60)},
+    {"title": "C", "name": "⚔️ Rank C", "color_rgb": (178, 34, 34)},
+    {"title": "DDD+", "name": "⚔️ Rank DDD+", "color_rgb": (184, 134, 11)},
+    {"title": "DDD", "name": "⚔️ Rank DDD", "color_rgb": (218, 165, 32)},
+    {"title": "DD+", "name": "⚔️ Rank DD+", "color_rgb": (238, 232, 170)},
+    {"title": "DD", "name": "⚔️ Rank DD", "color_rgb": (189, 183, 107)},
+    {"title": "D+", "name": "⚔️ Rank D+", "color_rgb": (154, 205, 50)},
+    {"title": "D", "name": "⚔️ Rank D", "color_rgb": (85, 107, 47)},
+    {"title": "EEE+", "name": "⚔️ Rank EEE+", "color_rgb": (144, 238, 144)},
+    {"title": "EEE", "name": "⚔️ Rank EEE", "color_rgb": (152, 251, 152)},
+    {"title": "EE+", "name": "⚔️ Rank EE+", "color_rgb": (175, 238, 238)},
+    {"title": "EE", "name": "⚔️ Rank EE", "color_rgb": (0, 206, 209)},
+    {"title": "E+", "name": "⚔️ Rank E+", "color_rgb": (70, 130, 180)},
+    {"title": "E", "name": "⚔️ Rank E", "color_rgb": (100, 149, 237)},
+    {"title": "FFF+", "name": "⚔️ Rank FFF+", "color_rgb": (176, 196, 222)},
+    {"title": "FFF", "name": "⚔️ Rank FFF", "color_rgb": (119, 136, 153)},
+    {"title": "FF+", "name": "⚔️ Rank FF+", "color_rgb": (112, 128, 144)},
+    {"title": "FF", "name": "⚔️ Rank FF", "color_rgb": (105, 105, 105)},
+    {"title": "F+", "name": "⚔️ Rank F+", "color_rgb": (128, 128, 128)},
+    {"title": "F", "name": "⚔️ Rank F", "color_rgb": (169, 169, 169)},
+]
+
+ALL_MANAGED_ROLE_NAMES = [r["name"] for r in VIME_RANK_ROLES] + [r["name"] for r in REBIRTH_RANK_ROLES]
 
 try:
     import discord
@@ -77,6 +112,9 @@ try:
                     logger.warning(f"Failed to sync guild {guild.name}: {ge}")
         except Exception as e:
             logger.error(f"Error syncing Discord slash commands: {e}")
+
+        # Launch 10-minute auto role synchronization loop
+        asyncio.create_task(auto_role_sync_task())
 
     @discord_client.event
     async def on_message(message: discord.Message):
@@ -190,6 +228,39 @@ def is_discord_ready() -> bool:
     return bool(discord_client and discord_client.is_ready())
 
 
+async def auto_role_sync_task():
+    """Background task that re-syncs all verified Discord users every 10 minutes."""
+    logger.info("Starting Discord 10-minute Auto-Role Sync Loop...")
+    while True:
+        try:
+            await asyncio.sleep(600) # 10 minutes
+            if not is_discord_ready():
+                continue
+                
+            verifications = await db.get_all_discord_verifications()
+            if not verifications:
+                continue
+
+            logger.info(f"🔄 Auto-syncing roles for {len(verifications)} verified Discord users...")
+            for discord_user_id, nick in verifications:
+                try:
+                    profile = await checker.fetch_full_player_profile(nick)
+                    if not profile.get("exists"):
+                        continue
+
+                    for guild in discord_client.guilds:
+                        member = guild.get_member(discord_user_id)
+                        if member:
+                            await sync_user_roles(guild, member, profile)
+                except Exception as ue:
+                    logger.warning(f"Error auto-syncing user {discord_user_id} ({nick}): {ue}")
+        except asyncio.CancelledError:
+            logger.info("Auto-role sync loop cancelled.")
+            break
+        except Exception as e:
+            logger.error(f"Error in auto_role_sync_task: {e}")
+
+
 async def ensure_role_exists(guild: discord.Guild, role_cfg: dict) -> discord.Role:
     """Creates role on guild if it doesn't exist."""
     role_name = role_cfg["name"]
@@ -212,51 +283,47 @@ async def ensure_role_exists(guild: discord.Guild, role_cfg: dict) -> discord.Ro
 
 async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile: dict) -> list[str]:
     """
-    Automatically assigns appropriate rank, level, and rebirth roles to Discord member,
-    creating missing roles on the server if needed.
+    Assigns ONLY 2 roles:
+    1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Premium)
+    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Rank SS, Rank SSS, Rank F)
     """
     if not guild or not member:
         return []
         
     user_rank = (profile.get("rank") or "USER").upper()
-    user_lvl = profile.get("level", 0) or 0
-    user_reb = profile.get("sl_rebirth", 0) or 0
+    rebirth_rank_title = profile.get("sl_rebirth_rank", "F")
     
-    # Determine target rank role for this profile
+    # 1. Determine target VimeWorld Rank Role
     target_rank_cfg = None
-    for cfg in [c for c in ROLE_CONFIGS if c["type"] == "rank"]:
+    for cfg in VIME_RANK_ROLES:
         if cfg["match"] == user_rank:
             target_rank_cfg = cfg
             break
     if not target_rank_cfg:
-        target_rank_cfg = [c for c in ROLE_CONFIGS if c["match"] == "USER"][0]
+        target_rank_cfg = [c for c in VIME_RANK_ROLES if c["match"] == "USER"][0]
 
-    target_lvl_cfg = None
-    for cfg in [c for c in ROLE_CONFIGS if c["type"] == "level"]:
-        if user_lvl >= cfg["min_lvl"]:
-            target_lvl_cfg = cfg
-            break
-
+    # 2. Determine target Rebirth Rank Role
     target_reb_cfg = None
-    for cfg in [c for c in ROLE_CONFIGS if c["type"] == "rebirth"]:
-        if user_reb >= cfg["min_reb"]:
+    for cfg in REBIRTH_RANK_ROLES:
+        if cfg["title"] == rebirth_rank_title:
             target_reb_cfg = cfg
             break
+    if not target_reb_cfg:
+        target_reb_cfg = [c for c in REBIRTH_RANK_ROLES if c["title"] == "F"][0]
 
     assigned_role_names = []
-    managed_role_names = [c["name"] for c in ROLE_CONFIGS]
     
     # Roles to add
     roles_to_add = []
-    for cfg in (target_rank_cfg, target_lvl_cfg, target_reb_cfg):
+    for cfg in (target_rank_cfg, target_reb_cfg):
         if cfg:
             role = await ensure_role_exists(guild, cfg)
             if role:
                 roles_to_add.append(role)
                 assigned_role_names.append(role.name)
 
-    # Roles to remove (obsolete VimeWorld managed roles)
-    roles_to_remove = [r for r in member.roles if r.name in managed_role_names and r not in roles_to_add]
+    # Roles to remove (any old rank or rebirth roles or legacy level roles)
+    roles_to_remove = [r for r in member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name) and r not in roles_to_add]
 
     try:
         if roles_to_remove:
@@ -266,7 +333,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
             
         # Try updating nickname if bot has permissions
         try:
-            new_nick = f"{profile['nickname']} [{user_lvl} lvl]"
+            new_nick = f"{profile['nickname']}"
             if member.id != guild.owner_id and member.nick != new_nick:
                 await member.edit(nick=new_nick)
         except Exception:
@@ -291,7 +358,7 @@ async def process_user_verification(guild: discord.Guild, member: discord.Member
     text = (
         f"✅ **Успешная верификация!**\n\n"
         f"👤 Аккаунт **{member.mention}** привязан к VimeWorld нику `{profile['nickname']}`\n"
-        f"📊 Уровень: `{profile['level']}` | 🔄 Перерождений: `{profile['sl_rebirth']}`\n"
+        f"🔄 Перерождений: `{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)\n"
         f"🎖 **Выданные роли:** {roles_str}"
     )
     return True, text
@@ -312,7 +379,7 @@ async def process_user_sync(guild: discord.Guild, member: discord.Member) -> tup
 
     text = (
         f"🔄 **Роли успешно синхронизированы!**\n\n"
-        f"👤 Ник: `{profile['nickname']}` | Уровень: `{profile['level']}` | 🔄 Перерождений: `{profile['sl_rebirth']}`\n"
+        f"👤 Ник: `{profile['nickname']}` | 🔄 Перерождений: `{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)\n"
         f"🎖 **Обновлённые роли:** {roles_str}"
     )
     return True, text
@@ -327,9 +394,7 @@ async def process_user_unverify(guild: discord.Guild, target_member: discord.Mem
     await db.delete_discord_verification(target_member.id)
 
     # 2. Find and strip all VimeWorld managed roles
-    managed_role_names = [c["name"] for c in ROLE_CONFIGS]
-    roles_to_remove = [r for r in target_member.roles if r.name in managed_role_names]
-
+    roles_to_remove = [r for r in target_member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name)]
     removed_role_names = [r.name for r in roles_to_remove]
 
     try:
@@ -427,7 +492,7 @@ def build_player_embed(profile: dict) -> discord.Embed:
     embed.add_field(
         name="🗡 Solo Leveling Статистика",
         value=(
-            f"🔄 **Перерождений:** `{profile['sl_rebirth']}`\n"
+            f"🔄 **Перерождений:** `{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)\n"
             f"⚡ **Сила удара:** `{profile['sl_damage_formatted']}`\n"
             f"💰 **Золото:** `{profile['sl_gold_formatted']}`\n"
             f"🎯 **Очки улучшений:** `{profile['sl_upgrade_points']}`"
@@ -466,7 +531,7 @@ def build_compare_embed(p1: dict, p2: dict) -> discord.Embed:
     )
     embed.add_field(
         name="🔄 Перерождения",
-        value=f"• **{nick1}:** `{p1['sl_rebirth']}`{icon_reb1}\n• **{nick2}:** `{p2['sl_rebirth']}`{icon_reb2}",
+        value=f"• **{nick1}:** `{p1['sl_rebirth']}` (Ранг: `{p1['sl_rebirth_rank']}`){icon_reb1}\n• **{nick2}:** `{p2['sl_rebirth']}` (Ранг: `{p2['sl_rebirth_rank']}`){icon_reb2}",
         inline=False
     )
     embed.add_field(

@@ -15,6 +15,22 @@ SUFFIXES = [
     "UVG", "DVG", "TVG", "QAV", "QIV", "SXV", "SPV", "OCV", "NOV", "CENT"
 ]
 
+REBIRTH_RANK_MAP = {
+    40: "SSS", 39: "SS+", 38: "SS", 37: "S+", 36: "S",
+    35: "AAA+", 34: "AAA", 33: "AA+", 32: "AA", 31: "A+", 30: "A",
+    29: "BBB+", 28: "BBB", 27: "BB+", 26: "BB", 25: "B+", 24: "B",
+    23: "CCC+", 22: "CCC", 21: "CC+", 20: "CC", 19: "C+", 18: "C",
+    17: "DDD+", 16: "DDD", 15: "DD+", 14: "DD", 13: "D+", 12: "D",
+    11: "EEE+", 10: "EEE", 9: "EE+", 8: "EE", 7: "E+", 6: "E",
+    5: "FFF+", 4: "FFF", 3: "FF+", 2: "FF", 1: "F+", 0: "F"
+}
+
+def get_rebirth_rank_title(rebirth_count: int) -> str:
+    """Returns official Solo Leveling rank title (e.g. SSS, SS+, SS, S, AAA... F) based on rebirth count."""
+    if rebirth_count >= 40:
+        return "SSS"
+    return REBIRTH_RANK_MAP.get(rebirth_count, "F")
+
 def format_big_number(val) -> str:
     """Formats large Solo Leveling numbers into clean VimeWorld style (e.g. 82.5DVG, 13.9OCD)."""
     if not val or val == 0:
@@ -107,6 +123,7 @@ async def fetch_full_player_profile(nickname: str) -> dict:
         "head_url": f"https://skin.vimeworld.com/head/{nickname}/64.png",
         # Solo Leveling stats
         "sl_rebirth": 0,
+        "sl_rebirth_rank": "F",
         "sl_damage_raw": 0,
         "sl_damage_formatted": "0",
         "sl_gold_raw": 0,
@@ -146,7 +163,6 @@ async def fetch_full_player_profile(nickname: str) -> dict:
                     stats_json = await resp.json()
                     stats = stats_json.get("stats", {})
                     
-                    # Search across all Solo Leveling seasons keys (SOLOLEVELING, SOLOLEVELING2...8)
                     best_damage = 0
                     best_rebirth = 0
                     best_gold = 0
@@ -160,13 +176,17 @@ async def fetch_full_player_profile(nickname: str) -> dict:
                             gold = g.get("gold", 0) or 0
                             upg = g.get("upgrade_points", 0) or 0
                             
-                            if dmg > best_damage or reb > best_rebirth:
-                                best_damage = dmg
+                            if reb > best_rebirth:
                                 best_rebirth = reb
+                            if dmg > best_damage:
+                                best_damage = dmg
+                            if gold > best_gold:
                                 best_gold = gold
+                            if upg > best_upgrades:
                                 best_upgrades = upg
 
                     result["sl_rebirth"] = best_rebirth
+                    result["sl_rebirth_rank"] = get_rebirth_rank_title(best_rebirth)
                     result["sl_damage_raw"] = best_damage
                     result["sl_damage_formatted"] = format_big_number(best_damage)
                     result["sl_gold_raw"] = best_gold
