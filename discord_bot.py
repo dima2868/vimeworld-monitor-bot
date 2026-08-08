@@ -16,9 +16,17 @@ voice_client = None
 tree = None
 
 ROLE_CONFIGS = [
-    # Ranks (Highest to lowest)
+    # Full VimeWorld Ranks List (Highest to lowest hierarchy)
+    {"name": "🔱 Ultimate", "color_rgb": (255, 0, 128), "type": "rank", "match": "ULTIMATE"},
     {"name": "👑 Imperial", "color_rgb": (255, 215, 0), "type": "rank", "match": "IMPERIAL"},
-    {"name": "💎 Vime", "color_rgb": (0, 255, 255), "type": "rank", "match": "VIME"},
+    {"name": "💥 Absolute", "color_rgb": (255, 50, 50), "type": "rank", "match": "ABSOLUTE"},
+    {"name": "🌌 Celestial", "color_rgb": (180, 100, 255), "type": "rank", "match": "CELESTIAL"},
+    {"name": "🔮 Eternal", "color_rgb": (147, 112, 219), "type": "rank", "match": "ETERNAL"},
+    {"name": "⚔️ Elite", "color_rgb": (220, 20, 60), "type": "rank", "match": "ELITE"},
+    {"name": "🛡 Thane", "color_rgb": (70, 130, 180), "type": "rank", "match": "THANE"},
+    {"name": "✨ Divine", "color_rgb": (255, 223, 0), "type": "rank", "match": "DIVINE"},
+    {"name": "☠️ Immortal", "color_rgb": (178, 34, 34), "type": "rank", "match": "IMMORTAL"},
+    {"name": "🙏 Holy", "color_rgb": (255, 182, 193), "type": "rank", "match": "HOLY"},
     {"name": "⚡ Premium", "color_rgb": (155, 89, 182), "type": "rank", "match": "PREMIUM"},
     {"name": "⭐ VIP", "color_rgb": (46, 204, 113), "type": "rank", "match": "VIP"},
     {"name": "👤 Игрок VimeWorld", "color_rgb": (149, 165, 166), "type": "rank", "match": "USER"},
@@ -191,7 +199,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     user_lvl = profile.get("level", 0) or 0
     user_reb = profile.get("sl_rebirth", 0) or 0
     
-    # Determine target roles for this profile
+    # Determine target rank role for this profile
     target_rank_cfg = None
     for cfg in [c for c in ROLE_CONFIGS if c["type"] == "rank"]:
         if cfg["match"] == user_rank:
@@ -259,7 +267,7 @@ async def process_user_verification(guild: discord.Guild, member: discord.Member
     
     text = (
         f"✅ **Успешная верификация!**\n\n"
-        f"👤 Аккаунт **{member.mention}** привязан к VimeWorld нику ` {profile['nickname']} `\n"
+        f"👤 Аккаунт **{member.mention}** привязан к VimeWorld нику `{profile['nickname']}`\n"
         f"📊 Уровень: `{profile['level']}` | 🔄 Перерождений: `{profile['sl_rebirth']}`\n"
         f"🎖 **Выданные роли:** {roles_str}"
     )
