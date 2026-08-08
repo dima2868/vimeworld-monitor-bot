@@ -43,6 +43,15 @@ async def init_db():
                 verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Player states table (for monitoring online state transitions)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS player_states (
+                nickname TEXT PRIMARY KEY,
+                state TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         
         await db.commit()
     logger.info("Database initialized successfully.")
@@ -124,6 +133,30 @@ async def get_subscriptions_breakdown() -> dict:
         async with db.execute("SELECT sub_key, COUNT(user_id) FROM subscriptions GROUP BY sub_key") as cursor:
             rows = await cursor.fetchall()
             return {r[0]: r[1] for r in rows}
+
+# PLAYER STATES DB FUNCTIONS (FOR MONITORING)
+async def has_player_state(nickname: str) -> bool:
+    """Checks if a player has a saved state in database."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT 1 FROM player_states WHERE nickname = ?", (nickname,)) as cursor:
+            row = await cursor.fetchone()
+            return row is not None
+
+async def get_player_last_state(nickname: str) -> str:
+    """Gets the last recorded state for a player (OFFLINE, LOBBY, SOLOLEVELING, OTHER_GAME)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT state FROM player_states WHERE nickname = ?", (nickname,)) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else "OFFLINE"
+
+async def set_player_state(nickname: str, state: str):
+    """Sets or updates the recorded state for a player."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO player_states (nickname, state, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+            (nickname, state)
+        )
+        await db.commit()
 
 # DISCORD SETTINGS DB FUNCTIONS
 async def get_discord_setting(key: str, default: int = 1) -> int:
