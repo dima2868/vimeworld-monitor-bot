@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # List of ignored AFK Voice Channel IDs
 EXCLUDED_AFK_CHANNEL_IDS = [553187808630538240]
 
-# Reference Role ID below which Donator Ranks will be placed
+# Reference Role ID below which Rebirth Ranks will be placed
 REFERENCE_ROLE_ID = 541667269634424862
 
 # Discord client & command tree placeholder
@@ -128,7 +128,7 @@ try:
                     tree.copy_global_to(guild=guild)
                     await tree.sync(guild=guild)
                     logger.info(f"Instantly synced slash commands to guild: {guild.name} ({guild.id})")
-                    # Push roles to the VERY TOP of the server hierarchy
+                    # Setup role hierarchy on startup
                     asyncio.create_task(setup_guild_role_hierarchy(guild))
                 except Exception as ge:
                     logger.warning(f"Failed to sync guild {guild.name}: {ge}")
@@ -255,17 +255,13 @@ def is_discord_ready() -> bool:
 
 async def setup_guild_role_hierarchy(guild: discord.Guild):
     """
-    Pushes Rebirth Ranks to the VERY TOP of the server role hierarchy
-    (directly under the Bot's top role) so members are highlighted in the sidebar by strength!
-    Donator Ranks are placed below reference role 541667269634424862.
+    Positions role hierarchy continuously:
+    1. Rebirth Ranks are positioned CONTINUOUSLY right BELOW role ID 541667269634424862 (highest Герой FF+ down to Охотник F).
+    2. Donator Ranks are positioned CONTINUOUSLY at the VERY BOTTOM of the hierarchy (Ultimate down to User at pos 1).
     """
-    bot_member = guild.get_member(discord_client.user.id)
-    if not bot_member:
-        return
-
-    bot_top_pos = bot_member.top_role.position
+    ref_role = guild.get_role(REFERENCE_ROLE_ID)
     
-    # 1. Ensure all managed roles exist with hoist=True
+    # 1. Ensure all managed roles exist
     donator_roles = []
     for cfg in VIME_RANK_ROLES: # Ultimate down to User
         role = await ensure_role_exists(guild, cfg)
@@ -278,35 +274,35 @@ async def setup_guild_role_hierarchy(guild: discord.Guild):
         if role:
             rebirth_roles.append(role)
 
-    ref_role = guild.get_role(REFERENCE_ROLE_ID)
-
-    # 2. Build positions from TOP (bot_top_pos - 1) downwards:
-    # Top -> Rebirth Ranks (Highest first: Герой FF+ -> Охотник F)
-    # Middle -> Reference Role (541667269634424862)
-    # Bottom -> Donator Ranks (Ultimate -> User)
-    
-    desired_order_top_to_bottom = []
-    desired_order_top_to_bottom.extend(rebirth_roles) # Highest rebirth on top
-    
-    if ref_role and ref_role not in desired_order_top_to_bottom:
-        desired_order_top_to_bottom.append(ref_role)
-        
-    desired_order_top_to_bottom.extend(donator_roles) # Donator ranks below
-
     positions = {}
-    current_pos = bot_top_pos - 1
-    
-    for role in desired_order_top_to_bottom:
-        if current_pos > 0:
-            positions[role] = current_pos
-            current_pos -= 1
+
+    # A) Donator ranks continuously at the VERY BOTTOM (positions 1..13)
+    # reversed(donator_roles) -> [User (pos 1), VIP (pos 2), ..., Ultimate (pos 13)]
+    donator_bottom_to_top = list(reversed(donator_roles))
+    for i, role in enumerate(donator_bottom_to_top, start=1):
+        positions[role] = i
+
+    # B) Rebirth ranks continuously right BELOW reference role 541667269634424862
+    if ref_role:
+        ref_pos = ref_role.position
+        # Rebirth roles from highest to lowest:
+        # Герой FF+ -> ref_pos - 1, Герой FF -> ref_pos - 2, ..., Охотник F -> ref_pos - 46
+        for offset, role in enumerate(rebirth_roles, start=1):
+            target_pos = ref_pos - offset
+            if target_pos > len(donator_roles):
+                positions[role] = target_pos
+    else:
+        # Fallback: position rebirth roles directly above donator roles
+        start_pos = len(donator_roles) + 1
+        for offset, role in enumerate(reversed(rebirth_roles)):
+            positions[role] = start_pos + offset
 
     try:
         if positions:
             await guild.edit_role_positions(positions=positions)
             logger.info(
-                f"Pushed role hierarchy to TOP for guild '{guild.name}' "
-                f"(under Bot top role pos {bot_top_pos})"
+                f"Successfully aligned role hierarchy for guild '{guild.name}' "
+                f"(Rebirth roles continuously below 541667269634424862, Donator roles continuously at bottom)"
             )
     except Exception as e:
         logger.warning(f"Could not edit role positions for guild '{guild.name}': {e}")
