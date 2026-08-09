@@ -82,6 +82,18 @@ REBIRTH_RANK_ROLES = [
     {"title": "F", "name": "⚔️ Охотник F", "color_rgb": (169, 169, 169)},
 ]
 
+# Title to numeric rank value mapping for strict anti-demotion protection
+REBIRTH_TITLE_TO_VAL = {
+    "Герой FF+": 45, "Герой FF": 44, "Герой F+": 43, "Герой F": 42,
+    "SSS+": 41, "SSS": 40, "SS+": 39, "SS": 38, "S+": 37, "S": 36,
+    "AAA+": 35, "AAA": 34, "AA+": 33, "AA": 32, "A+": 31, "A": 30,
+    "BBB+": 29, "BBB": 28, "BB+": 27, "BB": 26, "B+": 25, "B": 24,
+    "CCC+": 23, "CCC": 22, "CC+": 21, "CC": 20, "C+": 19, "C": 18,
+    "DDD+": 17, "DDD": 16, "DD+": 15, "DD": 14, "D+": 13, "D": 12,
+    "EEE+": 11, "EEE": 10, "EE+": 9, "EE": 8, "E+": 7, "E": 6,
+    "FFF+": 5, "FFF": 4, "FF+": 3, "FF": 2, "F+": 1, "F": 0
+}
+
 ALL_MANAGED_ROLE_NAMES = [r["name"] for r in VIME_RANK_ROLES] + [r["name"] for r in REBIRTH_RANK_ROLES]
 
 try:
@@ -118,7 +130,7 @@ try:
         except Exception as e:
             logger.error(f"Error syncing Discord slash commands: {e}")
 
-        # Launch 10-minute auto role synchronization loop
+        # Launch fast 2-second auto role synchronization loop
         asyncio.create_task(auto_role_sync_task())
 
     @discord_client.event
@@ -237,11 +249,11 @@ def is_discord_ready() -> bool:
 
 
 async def auto_role_sync_task():
-    """Background task that re-syncs all verified Discord users every 10 minutes."""
-    logger.info("Starting Discord 10-minute Auto-Role Sync Loop...")
+    """Background task that re-syncs all verified Discord users every 2 seconds."""
+    logger.info("Starting Discord 2-second Auto-Role Sync Loop...")
     while True:
         try:
-            await asyncio.sleep(600) # 10 minutes
+            await asyncio.sleep(2) # 2 seconds fast interval
             if not is_discord_ready():
                 continue
                 
@@ -249,7 +261,6 @@ async def auto_role_sync_task():
             if not verifications:
                 continue
 
-            logger.info(f"🔄 Auto-syncing roles for {len(verifications)} verified Discord users...")
             for discord_user_id, nick in verifications:
                 try:
                     profile = await checker.fetch_full_player_profile(nick)
@@ -267,7 +278,6 @@ async def auto_role_sync_task():
                             await sync_user_roles(guild, member, profile)
                 except Exception as ue:
                     logger.warning(f"Error auto-syncing user {discord_user_id} ({nick}): {ue}")
-                await asyncio.sleep(1) # Sleep to avoid rate limits
         except asyncio.CancelledError:
             logger.info("Auto-role sync loop cancelled.")
             break
@@ -297,7 +307,7 @@ async def ensure_role_exists(guild: discord.Guild, role_cfg: dict) -> discord.Ro
 
 async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile: dict) -> list[str]:
     """
-    Assigns ONLY 2 roles:
+    Assigns ONLY 2 roles with STRICT ANTI-DEMOTION PROTECTION:
     1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Premium)
     2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SSS, Охотник SS, Герой F)
     """
@@ -305,7 +315,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
         return []
         
     user_rank = (profile.get("rank") or "USER").upper()
-    rebirth_rank_title = profile.get("sl_rebirth_rank", "F")
+    fetched_rebirth_title = profile.get("sl_rebirth_rank", "F")
     sl_stats_loaded = profile.get("sl_stats_loaded", False)
     
     # 1. Determine target VimeWorld Rank Role
@@ -317,15 +327,36 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     if not target_rank_cfg:
         target_rank_cfg = [c for c in VIME_RANK_ROLES if c["match"] == "USER"][0]
 
-    # 2. Determine target Rebirth Rank Role (ONLY IF STATS SUCCESSFULLY LOADED)
+    # 2. STRICT ANTI-DEMOTION PROTECTION FOR REBIRTH RANK
+    # Find member's existing highest rebirth rank on Discord
+    existing_max_val = -1
+    existing_reb_cfg = None
+
+    for r in member.roles:
+        for cfg in REBIRTH_RANK_ROLES:
+            if r.name == cfg["name"]:
+                val = REBIRTH_TITLE_TO_VAL.get(cfg["title"], 0)
+                if val > existing_max_val:
+                    existing_max_val = val
+                    existing_reb_cfg = cfg
+
+    fetched_val = REBIRTH_TITLE_TO_VAL.get(fetched_rebirth_title, 0)
+
     target_reb_cfg = None
     if sl_stats_loaded:
-        for cfg in REBIRTH_RANK_ROLES:
-            if cfg["title"] == rebirth_rank_title:
-                target_reb_cfg = cfg
-                break
-        if not target_reb_cfg:
-            target_reb_cfg = [c for c in REBIRTH_RANK_ROLES if c["title"] == "F"][0]
+        # Pick the HIGHER rank between existing rank and newly fetched rank!
+        if existing_max_val > fetched_val:
+            target_reb_cfg = existing_reb_cfg
+        else:
+            for cfg in REBIRTH_RANK_ROLES:
+                if cfg["title"] == fetched_rebirth_title:
+                    target_reb_cfg = cfg
+                    break
+            if not target_reb_cfg:
+                target_reb_cfg = [c for c in REBIRTH_RANK_ROLES if c["title"] == "F"][0]
+    else:
+        # If stats weren't loaded, keep existing rank
+        target_reb_cfg = existing_reb_cfg or [c for c in REBIRTH_RANK_ROLES if c["title"] == "F"][0]
 
     assigned_role_names = []
     roles_to_add = []
@@ -337,8 +368,8 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
             roles_to_add.append(r_donator)
             assigned_role_names.append(r_donator.name)
             
-    # Rebirth rank role (only if stats loaded successfully)
-    if sl_stats_loaded and target_reb_cfg:
+    # Rebirth rank role (protected from demotion)
+    if target_reb_cfg:
         r_rebirth = await ensure_role_exists(guild, target_reb_cfg)
         if r_rebirth:
             roles_to_add.append(r_rebirth)
@@ -346,7 +377,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
 
     # Managed role names list
     donator_role_names = [r["name"] for r in VIME_RANK_ROLES]
-    rebirth_role_names = [r["name"] for r in REBIRTH_RANK_ROLES] if sl_stats_loaded else []
+    rebirth_role_names = [r["name"] for r in REBIRTH_RANK_ROLES]
     managed_to_check = donator_role_names + rebirth_role_names
 
     # Build final role list atomically
@@ -378,11 +409,6 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
         )
     except Exception as e:
         logger.warning(f"Error syncing roles for member {member.display_name}: {e}")
-
-    # If stats weren't loaded, include user's existing rebirth role name in output summary
-    if not sl_stats_loaded:
-        existing_reb_roles = [r.name for r in member.roles if r.name in [x["name"] for x in REBIRTH_RANK_ROLES]]
-        assigned_role_names.extend(existing_reb_roles)
 
     return assigned_role_names
 
