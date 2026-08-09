@@ -299,7 +299,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     """
     Assigns ONLY 2 roles:
     1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Premium)
-    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SS, Герой F, Охотник F)
+    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SSS, Охотник SS, Герой F)
     """
     if not guild or not member:
         return []
@@ -328,8 +328,6 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
             target_reb_cfg = [c for c in REBIRTH_RANK_ROLES if c["title"] == "F"][0]
 
     assigned_role_names = []
-    
-    # Roles to add
     roles_to_add = []
     
     # Donator rank role
@@ -346,24 +344,25 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
             roles_to_add.append(r_rebirth)
             assigned_role_names.append(r_rebirth.name)
 
-    # Roles to remove:
-    # Always remove old donator ranks
+    # Managed role names list
     donator_role_names = [r["name"] for r in VIME_RANK_ROLES]
-    # Remove old rebirth ranks ONLY if sl_stats_loaded is True
     rebirth_role_names = [r["name"] for r in REBIRTH_RANK_ROLES] if sl_stats_loaded else []
-
     managed_to_check = donator_role_names + rebirth_role_names
 
-    roles_to_remove = [
-        r for r in member.roles 
-        if (r.name in managed_to_check or "Level" in r.name or "Rank " in r.name) and r not in roles_to_add
+    # Build final role list atomically
+    current_roles = list(member.roles)
+    new_roles = [
+        r for r in current_roles 
+        if not (r.name in managed_to_check or "Level" in r.name or "Rank " in r.name) or r in roles_to_add
     ]
+    for r in roles_to_add:
+        if r not in new_roles:
+            new_roles.append(r)
 
     try:
-        if roles_to_remove:
-            await member.remove_roles(*roles_to_remove, reason="VimeWorld Sync Update")
-        if roles_to_add:
-            await member.add_roles(*roles_to_add, reason="VimeWorld Sync Update")
+        if set(new_roles) != set(current_roles):
+            await member.edit(roles=new_roles, reason="VimeWorld Auto-Role Sync")
+            logger.info(f"Updated roles for {member.display_name}: {[r.name for r in roles_to_add]}")
             
         # Try updating nickname if bot has permissions
         try:
@@ -372,6 +371,11 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
                 await member.edit(nick=new_nick)
         except Exception:
             pass # Ignore if lacking nickname permission
+    except discord.Forbidden:
+        logger.error(
+            f"❌ FORBIDDEN: Bot role is too low in server role hierarchy to manage roles for {member.display_name}! "
+            f"Please drag the Bot role ABOVE '{assigned_role_names}' in Discord Server Settings -> Roles."
+        )
     except Exception as e:
         logger.warning(f"Error syncing roles for member {member.display_name}: {e}")
 
@@ -470,8 +474,10 @@ async def process_user_unverify(guild: discord.Guild, target_member: discord.Mem
     removed_role_names = [r.name for r in roles_to_remove]
 
     try:
-        if roles_to_remove:
-            await target_member.remove_roles(*roles_to_remove, reason="VimeWorld Unverify Admin Command")
+        current_roles = list(target_member.roles)
+        new_roles = [r for r in current_roles if r not in roles_to_remove]
+        if set(new_roles) != set(current_roles):
+            await target_member.edit(roles=new_roles, reason="VimeWorld Unverify Admin Command")
         
         # Reset server nickname if possible
         try:
