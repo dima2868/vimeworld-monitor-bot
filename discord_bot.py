@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 # List of ignored AFK Voice Channel IDs
 EXCLUDED_AFK_CHANNEL_IDS = [553187808630538240]
 
+# Reference Role ID below which Donator Ranks will be placed
+REFERENCE_ROLE_ID = 541667269634424862
+
 # Discord client & command tree placeholder
 discord_client = None
 voice_client = None
@@ -125,6 +128,8 @@ try:
                     tree.copy_global_to(guild=guild)
                     await tree.sync(guild=guild)
                     logger.info(f"Instantly synced slash commands to guild: {guild.name} ({guild.id})")
+                    # Setup role hierarchy on startup
+                    asyncio.create_task(setup_guild_role_hierarchy(guild))
                 except Exception as ge:
                     logger.warning(f"Failed to sync guild {guild.name}: {ge}")
         except Exception as e:
@@ -248,6 +253,56 @@ def is_discord_ready() -> bool:
     return bool(discord_client and discord_client.is_ready())
 
 
+async def setup_guild_role_hierarchy(guild: discord.Guild):
+    """
+    Ensures all 13 VimeWorld Donator Ranks and 46 Rebirth Ranks exist on guild,
+    and sets their hierarchy positions:
+    - Rebirth Ranks (Highest to lowest) at TOP (so member sidebar shows strength!)
+    - Below Role ID 541667269634424862 (if present)
+    - Donator Ranks (Ultimate down to User) at BOTTOM
+    """
+    ref_role = guild.get_role(REFERENCE_ROLE_ID)
+    
+    # 1. Ensure all managed roles exist
+    donator_roles = []
+    for cfg in reversed(VIME_RANK_ROLES): # From User up to Ultimate
+        role = await ensure_role_exists(guild, cfg)
+        if role:
+            donator_roles.append(role)
+
+    rebirth_roles = []
+    for cfg in reversed(REBIRTH_RANK_ROLES): # From F up to Герой FF+
+        role = await ensure_role_exists(guild, cfg)
+        if role:
+            rebirth_roles.append(role)
+
+    # 2. Position ordering from BOTTOM TO TOP
+    positions = {}
+    current_pos = 1
+    
+    # Donator roles at bottom
+    for role in donator_roles:
+        positions[role] = current_pos
+        current_pos += 1
+
+    # Reference role (541667269634424862) above donator roles
+    if ref_role and ref_role not in positions:
+        positions[ref_role] = current_pos
+        current_pos += 1
+
+    # Rebirth roles at TOP above reference role
+    for role in rebirth_roles:
+        positions[role] = current_pos
+        current_pos += 1
+
+    try:
+        if positions:
+            await guild.edit_role_positions(positions=positions)
+            logger.info(f"Successfully configured role hierarchy positions for guild '{guild.name}'")
+    except Exception as e:
+        logger.warning(f"Could not edit role positions for guild '{guild.name}': {e}")
+
+
 async def auto_role_sync_task():
     """Background task that re-syncs all verified Discord users every 2 seconds."""
     logger.info("Starting Discord 2-second Auto-Role Sync Loop...")
@@ -328,7 +383,6 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
         target_rank_cfg = [c for c in VIME_RANK_ROLES if c["match"] == "USER"][0]
 
     # 2. STRICT ANTI-DEMOTION PROTECTION FOR REBIRTH RANK
-    # Find member's existing highest rebirth rank on Discord
     existing_max_val = -1
     existing_reb_cfg = None
 
