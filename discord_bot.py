@@ -128,7 +128,7 @@ try:
                     tree.copy_global_to(guild=guild)
                     await tree.sync(guild=guild)
                     logger.info(f"Instantly synced slash commands to guild: {guild.name} ({guild.id})")
-                    # Setup role hierarchy on startup
+                    # Push roles to the VERY TOP of the server hierarchy
                     asyncio.create_task(setup_guild_role_hierarchy(guild))
                 except Exception as ge:
                     logger.warning(f"Failed to sync guild {guild.name}: {ge}")
@@ -255,50 +255,59 @@ def is_discord_ready() -> bool:
 
 async def setup_guild_role_hierarchy(guild: discord.Guild):
     """
-    Ensures all 13 VimeWorld Donator Ranks and 46 Rebirth Ranks exist on guild,
-    and sets their hierarchy positions:
-    - Rebirth Ranks (Highest to lowest) at TOP (so member sidebar shows strength!)
-    - Below Role ID 541667269634424862 (if present)
-    - Donator Ranks (Ultimate down to User) at BOTTOM
+    Pushes Rebirth Ranks to the VERY TOP of the server role hierarchy
+    (directly under the Bot's top role) so members are highlighted in the sidebar by strength!
+    Donator Ranks are placed below reference role 541667269634424862.
     """
-    ref_role = guild.get_role(REFERENCE_ROLE_ID)
+    bot_member = guild.get_member(discord_client.user.id)
+    if not bot_member:
+        return
+
+    bot_top_pos = bot_member.top_role.position
     
-    # 1. Ensure all managed roles exist
+    # 1. Ensure all managed roles exist with hoist=True
     donator_roles = []
-    for cfg in reversed(VIME_RANK_ROLES): # From User up to Ultimate
+    for cfg in VIME_RANK_ROLES: # Ultimate down to User
         role = await ensure_role_exists(guild, cfg)
         if role:
             donator_roles.append(role)
 
     rebirth_roles = []
-    for cfg in reversed(REBIRTH_RANK_ROLES): # From F up to Герой FF+
+    for cfg in REBIRTH_RANK_ROLES: # Герой FF+ down to Охотник F
         role = await ensure_role_exists(guild, cfg)
         if role:
             rebirth_roles.append(role)
 
-    # 2. Position ordering from BOTTOM TO TOP
-    positions = {}
-    current_pos = 1
+    ref_role = guild.get_role(REFERENCE_ROLE_ID)
+
+    # 2. Build positions from TOP (bot_top_pos - 1) downwards:
+    # Top -> Rebirth Ranks (Highest first: Герой FF+ -> Охотник F)
+    # Middle -> Reference Role (541667269634424862)
+    # Bottom -> Donator Ranks (Ultimate -> User)
     
-    # Donator roles at bottom
-    for role in donator_roles:
-        positions[role] = current_pos
-        current_pos += 1
+    desired_order_top_to_bottom = []
+    desired_order_top_to_bottom.extend(rebirth_roles) # Highest rebirth on top
+    
+    if ref_role and ref_role not in desired_order_top_to_bottom:
+        desired_order_top_to_bottom.append(ref_role)
+        
+    desired_order_top_to_bottom.extend(donator_roles) # Donator ranks below
 
-    # Reference role (541667269634424862) above donator roles
-    if ref_role and ref_role not in positions:
-        positions[ref_role] = current_pos
-        current_pos += 1
-
-    # Rebirth roles at TOP above reference role
-    for role in rebirth_roles:
-        positions[role] = current_pos
-        current_pos += 1
+    positions = {}
+    current_pos = bot_top_pos - 1
+    
+    for role in desired_order_top_to_bottom:
+        if current_pos > 0:
+            positions[role] = current_pos
+            current_pos -= 1
 
     try:
         if positions:
             await guild.edit_role_positions(positions=positions)
-            logger.info(f"Successfully configured role hierarchy positions for guild '{guild.name}'")
+            logger.info(
+                f"Pushed role hierarchy to TOP for guild '{guild.name}' "
+                f"(under Bot top role pos {bot_top_pos})"
+            )
     except Exception as e:
         logger.warning(f"Could not edit role positions for guild '{guild.name}': {e}")
 
@@ -341,7 +350,7 @@ async def auto_role_sync_task():
 
 
 async def ensure_role_exists(guild: discord.Guild, role_cfg: dict) -> discord.Role:
-    """Creates role on guild if it doesn't exist."""
+    """Creates role on guild if it doesn't exist, ensuring hoist=True."""
     role_name = role_cfg["name"]
     role = discord.utils.get(guild.roles, name=role_name)
     if not role:
@@ -357,6 +366,13 @@ async def ensure_role_exists(guild: discord.Guild, role_cfg: dict) -> discord.Ro
             logger.info(f"Created Discord role '{role_name}' on server {guild.name}")
         except Exception as e:
             logger.warning(f"Could not create role '{role_name}' on guild {guild.name}: {e}")
+    else:
+        # Ensure hoist is enabled for sidebar grouping
+        if not role.hoist:
+            try:
+                await role.edit(hoist=True)
+            except Exception:
+                pass
     return role
 
 
