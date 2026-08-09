@@ -16,7 +16,8 @@ SUFFIXES = [
 ]
 
 REBIRTH_RANK_MAP = {
-    40: "SSS", 39: "SS+", 38: "SS", 37: "S+", 36: "S",
+    45: "Герой FF+", 44: "Герой FF", 43: "Герой F+", 42: "Герой F",
+    41: "SSS+", 40: "SSS", 39: "SS+", 38: "SS", 37: "S+", 36: "S",
     35: "AAA+", 34: "AAA", 33: "AA+", 32: "AA", 31: "A+", 30: "A",
     29: "BBB+", 28: "BBB", 27: "BB+", 26: "BB", 25: "B+", 24: "B",
     23: "CCC+", 22: "CCC", 21: "CC+", 20: "CC", 19: "C+", 18: "C",
@@ -26,9 +27,9 @@ REBIRTH_RANK_MAP = {
 }
 
 def get_rebirth_rank_title(rebirth_count: int) -> str:
-    """Returns official Solo Leveling rank title (e.g. SSS, SS+, SS, S, AAA... F) based on rebirth count."""
-    if rebirth_count >= 40:
-        return "SSS"
+    """Returns official Solo Leveling rank title (e.g. Герой FF+, Герой F, SSS+, SSS... F) based on rebirth count."""
+    if rebirth_count >= 45:
+        return "Герой FF+"
     return REBIRTH_RANK_MAP.get(rebirth_count, "F")
 
 def format_big_number(val) -> str:
@@ -122,6 +123,7 @@ async def fetch_full_player_profile(nickname: str) -> dict:
         "skin_url": f"https://skin.vimeworld.com/body/{nickname}/360.png",
         "head_url": f"https://skin.vimeworld.com/head/{nickname}/64.png",
         # Solo Leveling stats
+        "sl_stats_loaded": False,
         "sl_rebirth": 0,
         "sl_rebirth_rank": "F",
         "sl_damage_raw": 0,
@@ -158,7 +160,7 @@ async def fetch_full_player_profile(nickname: str) -> dict:
 
         # 2. Stats API for Solo Leveling
         try:
-            async with session.get(STATS_API_URL.format(nickname=nickname), timeout=5) as resp:
+            async with session.get(STATS_API_URL.format(nickname=nickname), timeout=10) as resp:
                 if resp.status == 200:
                     stats_json = await resp.json()
                     stats = stats_json.get("stats", {})
@@ -185,6 +187,7 @@ async def fetch_full_player_profile(nickname: str) -> dict:
                             if upg > best_upgrades:
                                 best_upgrades = upg
 
+                    result["sl_stats_loaded"] = True
                     result["sl_rebirth"] = best_rebirth
                     result["sl_rebirth_rank"] = get_rebirth_rank_title(best_rebirth)
                     result["sl_damage_raw"] = best_damage

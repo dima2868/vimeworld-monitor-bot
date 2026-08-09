@@ -32,9 +32,14 @@ VIME_RANK_ROLES = [
     {"name": "👤 Игрок VimeWorld", "color_rgb": (149, 165, 166), "match": "USER"},
 ]
 
-# Solo Leveling Rebirth Ranks List ("Охотник SSS" down to "Охотник F")
+# Solo Leveling Rebirth Ranks List ("Герой FF+" down to "Охотник F")
 REBIRTH_RANK_ROLES = [
-    {"title": "SSS", "name": "⚔️ Охотник SSS", "color_rgb": (255, 0, 0)},
+    {"title": "Герой FF+", "name": "⚔️ Герой FF+", "color_rgb": (255, 0, 255)},
+    {"title": "Герой FF", "name": "⚔️ Герой FF", "color_rgb": (255, 20, 147)},
+    {"title": "Герой F+", "name": "⚔️ Герой F+", "color_rgb": (255, 69, 0)},
+    {"title": "Герой F", "name": "⚔️ Герой F", "color_rgb": (255, 140, 0)},
+    {"title": "SSS+", "name": "⚔️ Охотник SSS+", "color_rgb": (255, 0, 0)},
+    {"title": "SSS", "name": "⚔️ Охотник SSS", "color_rgb": (220, 20, 60)},
     {"title": "SS+", "name": "⚔️ Охотник SS+", "color_rgb": (255, 69, 0)},
     {"title": "SS", "name": "⚔️ Охотник SS", "color_rgb": (255, 140, 0)},
     {"title": "S+", "name": "⚔️ Охотник S+", "color_rgb": (255, 215, 0)},
@@ -154,7 +159,10 @@ try:
                 parts = content.split()
                 if len(parts) > 1 and parts[1].isdigit():
                     user_id = int(parts[1])
-                    target_member = message.guild.get_member(user_id)
+                    try:
+                        target_member = message.guild.get_member(user_id) or await message.guild.fetch_member(user_id)
+                    except Exception:
+                        target_member = None
                     
             if not target_member:
                 await message.channel.send("❌ **Укажите участника (упоминание или ID)!** Пример: `!unverify @User`")
@@ -250,10 +258,16 @@ async def auto_role_sync_task():
 
                     for guild in discord_client.guilds:
                         member = guild.get_member(discord_user_id)
+                        if not member:
+                            try:
+                                member = await guild.fetch_member(discord_user_id)
+                            except Exception:
+                                member = None
                         if member:
                             await sync_user_roles(guild, member, profile)
                 except Exception as ue:
                     logger.warning(f"Error auto-syncing user {discord_user_id} ({nick}): {ue}")
+                await asyncio.sleep(1) # Sleep to avoid rate limits
         except asyncio.CancelledError:
             logger.info("Auto-role sync loop cancelled.")
             break
@@ -285,13 +299,14 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     """
     Assigns ONLY 2 roles:
     1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Premium)
-    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SS, Охотник SSS, Охотник F)
+    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SS, Герой F, Охотник F)
     """
     if not guild or not member:
         return []
         
     user_rank = (profile.get("rank") or "USER").upper()
     rebirth_rank_title = profile.get("sl_rebirth_rank", "F")
+    sl_stats_loaded = profile.get("sl_stats_loaded", False)
     
     # 1. Determine target VimeWorld Rank Role
     target_rank_cfg = None
@@ -302,28 +317,47 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     if not target_rank_cfg:
         target_rank_cfg = [c for c in VIME_RANK_ROLES if c["match"] == "USER"][0]
 
-    # 2. Determine target Rebirth Rank Role
+    # 2. Determine target Rebirth Rank Role (ONLY IF STATS SUCCESSFULLY LOADED)
     target_reb_cfg = None
-    for cfg in REBIRTH_RANK_ROLES:
-        if cfg["title"] == rebirth_rank_title:
-            target_reb_cfg = cfg
-            break
-    if not target_reb_cfg:
-        target_reb_cfg = [c for c in REBIRTH_RANK_ROLES if c["title"] == "F"][0]
+    if sl_stats_loaded:
+        for cfg in REBIRTH_RANK_ROLES:
+            if cfg["title"] == rebirth_rank_title:
+                target_reb_cfg = cfg
+                break
+        if not target_reb_cfg:
+            target_reb_cfg = [c for c in REBIRTH_RANK_ROLES if c["title"] == "F"][0]
 
     assigned_role_names = []
     
     # Roles to add
     roles_to_add = []
-    for cfg in (target_rank_cfg, target_reb_cfg):
-        if cfg:
-            role = await ensure_role_exists(guild, cfg)
-            if role:
-                roles_to_add.append(role)
-                assigned_role_names.append(role.name)
+    
+    # Donator rank role
+    if target_rank_cfg:
+        r_donator = await ensure_role_exists(guild, target_rank_cfg)
+        if r_donator:
+            roles_to_add.append(r_donator)
+            assigned_role_names.append(r_donator.name)
+            
+    # Rebirth rank role (only if stats loaded successfully)
+    if sl_stats_loaded and target_reb_cfg:
+        r_rebirth = await ensure_role_exists(guild, target_reb_cfg)
+        if r_rebirth:
+            roles_to_add.append(r_rebirth)
+            assigned_role_names.append(r_rebirth.name)
 
-    # Roles to remove (any old rank or rebirth roles or legacy level roles)
-    roles_to_remove = [r for r in member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name or "Rank " in r.name or "Охотник " in r.name) and r not in roles_to_add]
+    # Roles to remove:
+    # Always remove old donator ranks
+    donator_role_names = [r["name"] for r in VIME_RANK_ROLES]
+    # Remove old rebirth ranks ONLY if sl_stats_loaded is True
+    rebirth_role_names = [r["name"] for r in REBIRTH_RANK_ROLES] if sl_stats_loaded else []
+
+    managed_to_check = donator_role_names + rebirth_role_names
+
+    roles_to_remove = [
+        r for r in member.roles 
+        if (r.name in managed_to_check or "Level" in r.name or "Rank " in r.name) and r not in roles_to_add
+    ]
 
     try:
         if roles_to_remove:
@@ -340,6 +374,11 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
             pass # Ignore if lacking nickname permission
     except Exception as e:
         logger.warning(f"Error syncing roles for member {member.display_name}: {e}")
+
+    # If stats weren't loaded, include user's existing rebirth role name in output summary
+    if not sl_stats_loaded:
+        existing_reb_roles = [r.name for r in member.roles if r.name in [x["name"] for x in REBIRTH_RANK_ROLES]]
+        assigned_role_names.extend(existing_reb_roles)
 
     return assigned_role_names
 
@@ -369,7 +408,7 @@ async def process_user_verification(guild: discord.Guild, member: discord.Member
     embed.add_field(name="🎮 Никнейм", value=f"`{profile['nickname']}`", inline=True)
     embed.add_field(name="📊 Уровень VimeWorld", value=f"`{profile['level']}` ур. ({profile['level_pct']}%)", inline=True)
     embed.add_field(name="🔄 Перерождения", value=f"`{profile['sl_rebirth']}`", inline=True)
-    embed.add_field(name="⚔️ Ранг Охотника", value=f"`Охотник {profile['sl_rebirth_rank']}`", inline=True)
+    embed.add_field(name="⚔️ Ранг Охотника", value=f"`{profile['sl_rebirth_rank']}`", inline=True)
     embed.add_field(name="⚡ Сила удара", value=f"`{profile['sl_damage_formatted']}`", inline=True)
     embed.add_field(name="🎖 Выданные роли", value=roles_str, inline=False)
     embed.set_footer(text="VimeWorld Solo Leveling Integration")
@@ -406,7 +445,7 @@ async def process_user_sync(guild: discord.Guild, member: discord.Member) -> dis
     embed.set_thumbnail(url=profile['head_url'])
     embed.add_field(name="👤 Участник", value=f"{member.mention}", inline=True)
     embed.add_field(name="🎮 Никнейм", value=f"`{profile['nickname']}`", inline=True)
-    embed.add_field(name="🔄 Перерождения", value=f"`{profile['sl_rebirth']}` (Охотник `{profile['sl_rebirth_rank']}`)", inline=True)
+    embed.add_field(name="🔄 Перерождения", value=f"`{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)", inline=True)
     embed.add_field(name="⚡ Сила удара", value=f"`{profile['sl_damage_formatted']}`", inline=True)
     embed.add_field(name="🎖 Обновлённые роли", value=roles_str, inline=False)
     embed.set_footer(text="VimeWorld Solo Leveling Integration")
@@ -427,7 +466,7 @@ async def process_user_unverify(guild: discord.Guild, target_member: discord.Mem
     await db.delete_discord_verification(target_member.id)
 
     # 2. Find and strip all VimeWorld managed roles
-    roles_to_remove = [r for r in target_member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name or "Rank " in r.name or "Охотник " in r.name)]
+    roles_to_remove = [r for r in target_member.roles if (r.name in ALL_MANAGED_ROLE_NAMES or "Level" in r.name or "Rank " in r.name or "Охотник " in r.name or "Герой " in r.name)]
     removed_role_names = [r.name for r in roles_to_remove]
 
     try:
@@ -527,7 +566,7 @@ def build_player_embed(profile: dict) -> discord.Embed:
     embed.add_field(
         name="🗡 Solo Leveling Статистика",
         value=(
-            f"🔄 **Перерождений:** `{profile['sl_rebirth']}` (Охотник `{profile['sl_rebirth_rank']}`)\n"
+            f"🔄 **Перерождений:** `{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)\n"
             f"⚡ **Сила удара:** `{profile['sl_damage_formatted']}`\n"
             f"💰 **Золото:** `{profile['sl_gold_formatted']}`\n"
             f"🎯 **Очки улучшений:** `{profile['sl_upgrade_points']}`"
@@ -566,7 +605,7 @@ def build_compare_embed(p1: dict, p2: dict) -> discord.Embed:
     )
     embed.add_field(
         name="🔄 Перерождения",
-        value=f"• **{nick1}:** `{p1['sl_rebirth']}` (Охотник `{p1['sl_rebirth_rank']}`){icon_reb1}\n• **{nick2}:** `{p2['sl_rebirth']}` (Охотник `{p2['sl_rebirth_rank']}`){icon_reb2}",
+        value=f"• **{nick1}:** `{p1['sl_rebirth']}` (Ранг: `{p1['sl_rebirth_rank']}`){icon_reb1}\n• **{nick2}:** `{p2['sl_rebirth']}` (Ранг: `{p2['sl_rebirth_rank']}`){icon_reb2}",
         inline=False
     )
     embed.add_field(
