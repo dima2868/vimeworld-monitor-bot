@@ -36,7 +36,7 @@ VIME_RANK_ROLES = [
 ]
 
 # Solo Leveling Rebirth Ranks List ("Герой SSS+" down to "Охотник F")
-# 42 rebirths = "Герой EEE", 43 = "Герой D", 44 = "Герой D+", 45 = "Герой DD"...
+# Heroes are STRONGER than Hunters (Hero SSS+ -> Hero EEE -> Hunter SSS+ -> Hunter F)
 REBIRTH_RANK_ROLES = [
     {"title": "Герой SSS+", "name": "⚔️ Герой SSS+", "color_rgb": (255, 0, 255)},
     {"title": "Герой SSS", "name": "⚔️ Герой SSS", "color_rgb": (255, 20, 147)},
@@ -170,7 +170,7 @@ try:
         except Exception as e:
             logger.error(f"Error syncing Discord slash commands: {e}")
 
-        # Launch fast 3-second auto role synchronization loop
+        # Launch fast auto role synchronization loop
         asyncio.create_task(auto_role_sync_task())
 
     @discord_client.event
@@ -290,84 +290,60 @@ def is_discord_ready() -> bool:
 
 async def setup_guild_role_hierarchy(guild: discord.Guild):
     """
-    Reorders ALL guild roles into a strict, monolithic, continuous hierarchy:
-    - Rebirth Ranks (Best to Worst: Герой SSS+ -> Охотник F) in a SINGLE CONTINUOUS BLOCK.
-    - Donator Ranks (Best to Worst: Ultimate -> User) in a SINGLE CONTINUOUS BLOCK AT THE VERY BOTTOM.
-    - NO OTHER SERVER ROLES INTERLEAVED BETWEEN MANAGED ROLES!
+    Reorders ALL managed roles into a strict continuous hierarchy under the Bot's top role:
+    1. Rebirth Block (TOP of managed roles): Герой SSS+ (highest) down to Герой EEE, then Охотник SSS+ down to Охотник F.
+    2. Reference Role 541667269634424862 (if present).
+    3. Donator Block (BOTTOM of managed roles): Ultimate down to User.
     """
-    ref_role = guild.get_role(REFERENCE_ROLE_ID)
     bot_member = guild.get_member(discord_client.user.id)
-    bot_top_role = bot_member.top_role if bot_member else None
+    if not bot_member:
+        return
+
+    bot_top_pos = bot_member.top_role.position
 
     # 1. Ensure all managed roles exist
-    donator_roles = [] # Ultimate (best) down to User (worst)
-    for cfg in VIME_RANK_ROLES:
+    donator_roles = []
+    for cfg in VIME_RANK_ROLES: # Ultimate down to User
         role = await ensure_role_exists(guild, cfg)
         if role:
             donator_roles.append(role)
 
-    rebirth_roles = [] # Герой SSS+ (best) down to Охотник F (worst)
-    for cfg in REBIRTH_RANK_ROLES:
+    rebirth_roles = []
+    for cfg in REBIRTH_RANK_ROLES: # Герой SSS+ down to Охотник F
         role = await ensure_role_exists(guild, cfg)
         if role:
             rebirth_roles.append(role)
 
-    managed_set = set(donator_roles + rebirth_roles)
+    ref_role = guild.get_role(REFERENCE_ROLE_ID)
 
-    # 2. Get all existing unmanaged roles on guild sorted by position
-    all_guild_roles = sorted(guild.roles, key=lambda r: r.position)
-    all_guild_roles = [r for r in all_guild_roles if not r.is_default()]
-    unmanaged_roles = [r for r in all_guild_roles if r not in managed_set]
+    # List of managed roles from TOP to BOTTOM:
+    # Top -> Rebirth Ranks (Герой SSS+ -> ... -> Герой EEE -> Охотник SSS+ -> ... -> Охотник F)
+    # Middle -> Reference role (if present)
+    # Bottom -> Donator Ranks (Ultimate -> ... -> User)
+    
+    top_to_bottom = []
+    top_to_bottom.extend(rebirth_roles)
+    if ref_role and ref_role not in top_to_bottom:
+        top_to_bottom.append(ref_role)
+    top_to_bottom.extend(donator_roles)
 
-    # Donator block from bottom to top (User -> VIP -> ... -> Ultimate)
-    donator_block = list(reversed(donator_roles))
-
-    # Rebirth block from bottom to top (Охотник F -> ... -> Герой SSS+)
-    rebirth_block = list(reversed(rebirth_roles))
-
-    # Build final continuous ordered list FROM BOTTOM TO TOP:
-    final_ordered_roles = []
-
-    # A. Donator Block (Positions 1..13 at bottom)
-    final_ordered_roles.extend(donator_block)
-
-    # B. Unmanaged middle roles and Rebirth roles
-    unmanaged_between = []
-    unmanaged_above = []
-
-    ref_found = False
-    for r in unmanaged_roles:
-        if bot_top_role and r.position >= bot_top_role.position:
-            unmanaged_above.append(r)
-        elif r.id == REFERENCE_ROLE_ID:
-            ref_found = True
-            unmanaged_above.append(r) # Place ref_role above rebirth block
-        elif ref_found:
-            unmanaged_above.append(r)
-        else:
-            unmanaged_between.append(r)
-
-    # Place unmanaged middle roles below rebirth block
-    final_ordered_roles.extend(unmanaged_between)
-
-    # C. Rebirth Block (Continuous, monolithic block from Охотник F up to Герой SSS+)
-    final_ordered_roles.extend(rebirth_block)
-
-    # D. Reference role & roles above rebirth block
-    final_ordered_roles.extend(unmanaged_above)
-
-    # Map integer positions: 1 to len(final_ordered_roles)
+    # Position assignment: highest position right below bot_top_pos
+    max_pos = max(1, bot_top_pos - 1)
+    
     positions = {}
-    for pos, role in enumerate(final_ordered_roles, start=1):
-        if not bot_top_role or role.position < bot_top_role.position:
-            positions[role] = pos
+    current_pos = max_pos
+    
+    for role in top_to_bottom: # From TOP role to BOTTOM role
+        if current_pos > 0 and role.position < bot_top_pos:
+            positions[role] = current_pos
+            current_pos -= 1
 
     try:
         if positions:
             await guild.edit_role_positions(positions=positions)
             logger.info(
-                f"Successfully aligned monolithic continuous role hierarchy for guild '{guild.name}' "
-                f"(Rebirth block: Герой SSS+ down to Охотник F; Donator block: Ultimate down to User at bottom)"
+                f"Successfully aligned role hierarchy positions for guild '{guild.name}' "
+                f"(Heroes at TOP -> Hunters -> Reference Role -> Donators at bottom, under Bot pos {bot_top_pos})"
             )
     except Exception as e:
         logger.warning(f"Could not edit role positions for guild '{guild.name}': {e}")
