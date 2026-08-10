@@ -36,6 +36,7 @@ VIME_RANK_ROLES = [
 ]
 
 # Solo Leveling Rebirth Ranks List ("Герой SSS+" down to "Охотник F")
+# 42 rebirths = "Герой EEE", 43 = "Герой D", 44 = "Герой D+", 45 = "Герой DD"...
 REBIRTH_RANK_ROLES = [
     {"title": "Герой SSS+", "name": "⚔️ Герой SSS+", "color_rgb": (255, 0, 255)},
     {"title": "Герой SSS", "name": "⚔️ Герой SSS", "color_rgb": (255, 20, 147)},
@@ -67,7 +68,6 @@ REBIRTH_RANK_ROLES = [
     {"title": "Герой DD", "name": "⚔️ Герой DD", "color_rgb": (189, 183, 107)},
     {"title": "Герой D+", "name": "⚔️ Герой D+", "color_rgb": (154, 205, 50)},
     {"title": "Герой D", "name": "⚔️ Герой D", "color_rgb": (85, 107, 47)},
-    {"title": "Герой EEE+", "name": "⚔️ Герой EEE+", "color_rgb": (144, 238, 144)},
     {"title": "Герой EEE", "name": "⚔️ Герой EEE", "color_rgb": (152, 251, 152)},
     {"title": "SSS+", "name": "⚔️ Охотник SSS+", "color_rgb": (255, 0, 0)},
     {"title": "SSS", "name": "⚔️ Охотник SSS", "color_rgb": (220, 20, 60)},
@@ -115,14 +115,14 @@ REBIRTH_RANK_ROLES = [
 
 # Title to numeric rank value mapping for strict anti-demotion protection
 REBIRTH_TITLE_TO_VAL = {
-    "Герой SSS+": 73, "Герой SSS": 72, "Герой SS+": 71, "Герой SS": 70,
-    "Герой S+": 69, "Герой S": 68, "Герой AAA+": 67, "Герой AAA": 66,
-    "Герой AA+": 65, "Герой AA": 64, "Герой A+": 63, "Герой A": 62,
-    "Герой BBB+": 61, "Герой BBB": 60, "Герой BB+": 59, "Герой BB": 58,
-    "Герой B+": 57, "Герой B": 56, "Герой CCC+": 55, "Герой CCC": 54,
-    "Герой CC+": 53, "Герой CC": 52, "Герой C+": 51, "Герой C": 50,
-    "Герой DDD+": 49, "Герой DDD": 48, "Герой DD+": 47, "Герой DD": 46,
-    "Герой D+": 45, "Герой D": 44, "Герой EEE+": 43, "Герой EEE": 42,
+    "Герой SSS+": 72, "Герой SSS": 71, "Герой SS+": 70, "Герой SS": 69,
+    "Герой S+": 68, "Герой S": 67, "Герой AAA+": 66, "Герой AAA": 65,
+    "Герой AA+": 64, "Герой AA": 63, "Герой A+": 62, "Герой A": 61,
+    "Герой BBB+": 60, "Герой BBB": 59, "Герой BB+": 58, "Герой BB": 57,
+    "Герой B+": 56, "Герой B": 55, "Герой CCC+": 54, "Герой CCC": 53,
+    "Герой CC+": 52, "Герой CC": 51, "Герой C+": 50, "Герой C": 49,
+    "Герой DDD+": 48, "Герой DDD": 47, "Герой DD+": 46, "Герой DD": 45,
+    "Герой D+": 44, "Герой D": 43, "Герой EEE": 42,
     "SSS+": 41, "SSS": 40, "SS+": 39, "SS": 38, "S+": 37, "S": 36,
     "AAA+": 35, "AAA": 34, "AA+": 33, "AA": 32, "A+": 31, "A": 30,
     "BBB+": 29, "BBB": 28, "BB+": 27, "BB": 26, "B+": 25, "B": 24,
@@ -170,7 +170,7 @@ try:
         except Exception as e:
             logger.error(f"Error syncing Discord slash commands: {e}")
 
-        # Launch fast 2-second auto role synchronization loop
+        # Launch fast 3-second auto role synchronization loop
         asyncio.create_task(auto_role_sync_task())
 
     @discord_client.event
@@ -374,11 +374,11 @@ async def setup_guild_role_hierarchy(guild: discord.Guild):
 
 
 async def auto_role_sync_task():
-    """Background task that re-syncs all verified Discord users every 2 seconds."""
-    logger.info("Starting Discord 2-second Auto-Role Sync Loop...")
+    """Background task that re-syncs all verified Discord users every 3 seconds cleanly."""
+    logger.info("Starting Discord Auto-Role Sync Loop...")
     while True:
         try:
-            await asyncio.sleep(2) # 2 seconds fast interval
+            await asyncio.sleep(3) # 3 seconds safe interval
             if not is_discord_ready():
                 continue
                 
@@ -440,7 +440,7 @@ async def ensure_role_exists(guild: discord.Guild, role_cfg: dict) -> discord.Ro
 async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile: dict) -> list[str]:
     """
     Assigns ONLY 2 roles with STRICT ANTI-DEMOTION PROTECTION:
-    1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Premium)
+    1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Divine)
     2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SSS, Герой EEE, Герой D)
     And assigns the user's exact VimeWorld nickname as their server nickname in Discord!
     """
