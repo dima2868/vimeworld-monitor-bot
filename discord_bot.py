@@ -407,6 +407,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     Assigns ONLY 2 roles with STRICT ANTI-DEMOTION PROTECTION:
     1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Premium)
     2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SSS, Охотник SS, Герой F)
+    And assigns the user's exact VimeWorld nickname as their server nickname in Discord!
     """
     if not guild or not member:
         return []
@@ -486,25 +487,35 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
         if r not in new_roles:
             new_roles.append(r)
 
+    # 3. Automatic VimeWorld Nickname assignment
+    vime_nickname = profile.get("nickname")
+    should_update_nick = (
+        vime_nickname 
+        and member.id != guild.owner_id 
+        and member.nick != vime_nickname
+    )
+    roles_changed = set(new_roles) != set(current_roles)
+
     try:
-        if set(new_roles) != set(current_roles):
-            await member.edit(roles=new_roles, reason="VimeWorld Auto-Role Sync")
-            logger.info(f"Updated roles for {member.display_name}: {[r.name for r in roles_to_add]}")
-            
-        # Try updating nickname if bot has permissions
-        try:
-            new_nick = f"{profile['nickname']}"
-            if member.id != guild.owner_id and member.nick != new_nick:
-                await member.edit(nick=new_nick)
-        except Exception:
-            pass # Ignore if lacking nickname permission
+        edit_kwargs = {}
+        if roles_changed:
+            edit_kwargs["roles"] = new_roles
+        if should_update_nick:
+            edit_kwargs["nick"] = vime_nickname
+
+        if edit_kwargs:
+            await member.edit(**edit_kwargs, reason="VimeWorld Auto-Role & Nickname Sync")
+            if roles_changed:
+                logger.info(f"Updated roles for {member.display_name}: {[r.name for r in roles_to_add]}")
+            if should_update_nick:
+                logger.info(f"Updated server nickname for {member.name} to '{vime_nickname}'")
     except discord.Forbidden:
         logger.error(
-            f"❌ FORBIDDEN: Bot role is too low in server role hierarchy to manage roles for {member.display_name}! "
-            f"Please drag the Bot role ABOVE '{assigned_role_names}' in Discord Server Settings -> Roles."
+            f"❌ FORBIDDEN: Bot lacks permission or bot role is too low in hierarchy to manage roles/nickname for {member.display_name}! "
+            f"Make sure the Bot role is dragged ABOVE the user's roles in Discord Server Settings -> Roles, and has 'Manage Nicknames' permission."
         )
     except Exception as e:
-        logger.warning(f"Error syncing roles for member {member.display_name}: {e}")
+        logger.warning(f"Error syncing roles/nickname for member {member.display_name}: {e}")
 
     return assigned_role_names
 
@@ -531,7 +542,7 @@ async def process_user_verification(guild: discord.Guild, member: discord.Member
     )
     embed.set_thumbnail(url=profile['head_url'])
     embed.add_field(name="👤 Аккаунт Discord", value=f"{member.mention}", inline=True)
-    embed.add_field(name="🎮 Никнейм", value=f"`{profile['nickname']}`", inline=True)
+    embed.add_field(name="🎮 Никнейм VimeWorld", value=f"`{profile['nickname']}`", inline=True)
     embed.add_field(name="📊 Уровень VimeWorld", value=f"`{profile['level']}` ур. ({profile['level_pct']}%)", inline=True)
     embed.add_field(name="🔄 Перерождения", value=f"`{profile['sl_rebirth']}`", inline=True)
     embed.add_field(name="⚔️ Ранг Охотника", value=f"`{profile['sl_rebirth_rank']}`", inline=True)
@@ -570,7 +581,7 @@ async def process_user_sync(guild: discord.Guild, member: discord.Member) -> dis
     )
     embed.set_thumbnail(url=profile['head_url'])
     embed.add_field(name="👤 Участник", value=f"{member.mention}", inline=True)
-    embed.add_field(name="🎮 Никнейм", value=f"`{profile['nickname']}`", inline=True)
+    embed.add_field(name="🎮 Никнейм VimeWorld", value=f"`{profile['nickname']}`", inline=True)
     embed.add_field(name="🔄 Перерождения", value=f"`{profile['sl_rebirth']}` (Ранг: `{profile['sl_rebirth_rank']}`)", inline=True)
     embed.add_field(name="⚡ Сила удара", value=f"`{profile['sl_damage_formatted']}`", inline=True)
     embed.add_field(name="🎖 Обновлённые роли", value=roles_str, inline=False)
