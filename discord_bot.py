@@ -35,12 +35,40 @@ VIME_RANK_ROLES = [
     {"name": "👤 Игрок VimeWorld", "color_rgb": (149, 165, 166), "match": "USER"},
 ]
 
-# Solo Leveling Rebirth Ranks List ("Герой FF+" down to "Охотник F")
+# Solo Leveling Rebirth Ranks List ("Герой SSS+" down to "Охотник F")
 REBIRTH_RANK_ROLES = [
-    {"title": "Герой FF+", "name": "⚔️ Герой FF+", "color_rgb": (255, 0, 255)},
-    {"title": "Герой FF", "name": "⚔️ Герой FF", "color_rgb": (255, 20, 147)},
-    {"title": "Герой F+", "name": "⚔️ Герой F+", "color_rgb": (255, 69, 0)},
-    {"title": "Герой F", "name": "⚔️ Герой F", "color_rgb": (255, 140, 0)},
+    {"title": "Герой SSS+", "name": "⚔️ Герой SSS+", "color_rgb": (255, 0, 255)},
+    {"title": "Герой SSS", "name": "⚔️ Герой SSS", "color_rgb": (255, 20, 147)},
+    {"title": "Герой SS+", "name": "⚔️ Герой SS+", "color_rgb": (255, 69, 0)},
+    {"title": "Герой SS", "name": "⚔️ Герой SS", "color_rgb": (255, 140, 0)},
+    {"title": "Герой S+", "name": "⚔️ Герой S+", "color_rgb": (255, 215, 0)},
+    {"title": "Герой S", "name": "⚔️ Герой S", "color_rgb": (255, 255, 0)},
+    {"title": "Герой AAA+", "name": "⚔️ Герой AAA+", "color_rgb": (173, 255, 47)},
+    {"title": "Герой AAA", "name": "⚔️ Герой AAA", "color_rgb": (0, 255, 0)},
+    {"title": "Герой AA+", "name": "⚔️ Герой AA+", "color_rgb": (0, 255, 127)},
+    {"title": "Герой AA", "name": "⚔️ Герой AA", "color_rgb": (0, 255, 255)},
+    {"title": "Герой A+", "name": "⚔️ Герой A+", "color_rgb": (30, 144, 255)},
+    {"title": "Герой A", "name": "⚔️ Герой A", "color_rgb": (0, 0, 255)},
+    {"title": "Герой BBB+", "name": "⚔️ Герой BBB+", "color_rgb": (138, 43, 226)},
+    {"title": "Герой BBB", "name": "⚔️ Герой BBB", "color_rgb": (147, 112, 219)},
+    {"title": "Герой BB+", "name": "⚔️ Герой BB+", "color_rgb": (186, 85, 211)},
+    {"title": "Герой BB", "name": "⚔️ Герой BB", "color_rgb": (218, 112, 214)},
+    {"title": "Герой B+", "name": "⚔️ Герой B+", "color_rgb": (255, 20, 147)},
+    {"title": "Герой B", "name": "⚔️ Герой B", "color_rgb": (255, 105, 180)},
+    {"title": "Герой CCC+", "name": "⚔️ Герой CCC+", "color_rgb": (250, 128, 114)},
+    {"title": "Герой CCC", "name": "⚔️ Герой CCC", "color_rgb": (233, 150, 122)},
+    {"title": "Герой CC+", "name": "⚔️ Герой CC+", "color_rgb": (240, 128, 128)},
+    {"title": "Герой CC", "name": "⚔️ Герой CC", "color_rgb": (205, 92, 92)},
+    {"title": "Герой C+", "name": "⚔️ Герой C+", "color_rgb": (220, 20, 60)},
+    {"title": "Герой C", "name": "⚔️ Герой C", "color_rgb": (178, 34, 34)},
+    {"title": "Герой DDD+", "name": "⚔️ Герой DDD+", "color_rgb": (184, 134, 11)},
+    {"title": "Герой DDD", "name": "⚔️ Герой DDD", "color_rgb": (218, 165, 32)},
+    {"title": "Герой DD+", "name": "⚔️ Герой DD+", "color_rgb": (238, 232, 170)},
+    {"title": "Герой DD", "name": "⚔️ Герой DD", "color_rgb": (189, 183, 107)},
+    {"title": "Герой D+", "name": "⚔️ Герой D+", "color_rgb": (154, 205, 50)},
+    {"title": "Герой D", "name": "⚔️ Герой D", "color_rgb": (85, 107, 47)},
+    {"title": "Герой EEE+", "name": "⚔️ Герой EEE+", "color_rgb": (144, 238, 144)},
+    {"title": "Герой EEE", "name": "⚔️ Герой EEE", "color_rgb": (152, 251, 152)},
     {"title": "SSS+", "name": "⚔️ Охотник SSS+", "color_rgb": (255, 0, 0)},
     {"title": "SSS", "name": "⚔️ Охотник SSS", "color_rgb": (220, 20, 60)},
     {"title": "SS+", "name": "⚔️ Охотник SS+", "color_rgb": (255, 69, 0)},
@@ -87,7 +115,14 @@ REBIRTH_RANK_ROLES = [
 
 # Title to numeric rank value mapping for strict anti-demotion protection
 REBIRTH_TITLE_TO_VAL = {
-    "Герой FF+": 45, "Герой FF": 44, "Герой F+": 43, "Герой F": 42,
+    "Герой SSS+": 73, "Герой SSS": 72, "Герой SS+": 71, "Герой SS": 70,
+    "Герой S+": 69, "Герой S": 68, "Герой AAA+": 67, "Герой AAA": 66,
+    "Герой AA+": 65, "Герой AA": 64, "Герой A+": 63, "Герой A": 62,
+    "Герой BBB+": 61, "Герой BBB": 60, "Герой BB+": 59, "Герой BB": 58,
+    "Герой B+": 57, "Герой B": 56, "Герой CCC+": 55, "Герой CCC": 54,
+    "Герой CC+": 53, "Герой CC": 52, "Герой C+": 51, "Герой C": 50,
+    "Герой DDD+": 49, "Герой DDD": 48, "Герой DD+": 47, "Герой DD": 46,
+    "Герой D+": 45, "Герой D": 44, "Герой EEE+": 43, "Герой EEE": 42,
     "SSS+": 41, "SSS": 40, "SS+": 39, "SS": 38, "S+": 37, "S": 36,
     "AAA+": 35, "AAA": 34, "AA+": 33, "AA": 32, "A+": 31, "A": 30,
     "BBB+": 29, "BBB": 28, "BB+": 27, "BB": 26, "B+": 25, "B": 24,
@@ -256,7 +291,7 @@ def is_discord_ready() -> bool:
 async def setup_guild_role_hierarchy(guild: discord.Guild):
     """
     Reorders ALL guild roles into a strict, monolithic, continuous hierarchy:
-    - Rebirth Ranks (Best to Worst: Герой FF+ -> Охотник F) in a SINGLE CONTINUOUS BLOCK.
+    - Rebirth Ranks (Best to Worst: Герой SSS+ -> Охотник F) in a SINGLE CONTINUOUS BLOCK.
     - Donator Ranks (Best to Worst: Ultimate -> User) in a SINGLE CONTINUOUS BLOCK AT THE VERY BOTTOM.
     - NO OTHER SERVER ROLES INTERLEAVED BETWEEN MANAGED ROLES!
     """
@@ -271,7 +306,7 @@ async def setup_guild_role_hierarchy(guild: discord.Guild):
         if role:
             donator_roles.append(role)
 
-    rebirth_roles = [] # Герой FF+ (best) down to Охотник F (worst)
+    rebirth_roles = [] # Герой SSS+ (best) down to Охотник F (worst)
     for cfg in REBIRTH_RANK_ROLES:
         role = await ensure_role_exists(guild, cfg)
         if role:
@@ -287,7 +322,7 @@ async def setup_guild_role_hierarchy(guild: discord.Guild):
     # Donator block from bottom to top (User -> VIP -> ... -> Ultimate)
     donator_block = list(reversed(donator_roles))
 
-    # Rebirth block from bottom to top (Охотник F -> ... -> Герой FF+)
+    # Rebirth block from bottom to top (Охотник F -> ... -> Герой SSS+)
     rebirth_block = list(reversed(rebirth_roles))
 
     # Build final continuous ordered list FROM BOTTOM TO TOP:
@@ -315,7 +350,7 @@ async def setup_guild_role_hierarchy(guild: discord.Guild):
     # Place unmanaged middle roles below rebirth block
     final_ordered_roles.extend(unmanaged_between)
 
-    # C. Rebirth Block (Continuous, monolithic block from Охотник F up to Герой FF+)
+    # C. Rebirth Block (Continuous, monolithic block from Охотник F up to Герой SSS+)
     final_ordered_roles.extend(rebirth_block)
 
     # D. Reference role & roles above rebirth block
@@ -332,7 +367,7 @@ async def setup_guild_role_hierarchy(guild: discord.Guild):
             await guild.edit_role_positions(positions=positions)
             logger.info(
                 f"Successfully aligned monolithic continuous role hierarchy for guild '{guild.name}' "
-                f"(Rebirth block: Герой FF+ down to Охотник F; Donator block: Ultimate down to User at bottom)"
+                f"(Rebirth block: Герой SSS+ down to Охотник F; Donator block: Ultimate down to User at bottom)"
             )
     except Exception as e:
         logger.warning(f"Could not edit role positions for guild '{guild.name}': {e}")
@@ -406,17 +441,33 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     """
     Assigns ONLY 2 roles with STRICT ANTI-DEMOTION PROTECTION:
     1. VimeWorld Rank Role (e.g. Imperial, Ultimate, Premium)
-    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SSS, Охотник SS, Герой F)
+    2. Rebirth Rank Role based on Solo Leveling Rebirths (e.g. Охотник SSS, Герой EEE, Герой D)
     And assigns the user's exact VimeWorld nickname as their server nickname in Discord!
     """
     if not guild or not member:
         return []
         
+    vime_nickname = profile.get("nickname")
+    
+    # 1. Automatic VimeWorld Nickname assignment
+    if vime_nickname and member.id != guild.owner_id:
+        if member.nick != vime_nickname and member.display_name != vime_nickname:
+            try:
+                await member.edit(nick=vime_nickname, reason="VimeWorld Auto Nickname Sync")
+                logger.info(f"Updated server nickname for {member.name} -> '{vime_nickname}'")
+            except discord.Forbidden:
+                logger.warning(
+                    f"❌ Cannot change nickname for {member.display_name}: Bot lacks 'Manage Nicknames' permission "
+                    f"or member role is higher than bot."
+                )
+            except Exception as ne:
+                logger.warning(f"Error updating nickname for {member.display_name}: {ne}")
+
     user_rank = (profile.get("rank") or "USER").upper()
     fetched_rebirth_title = profile.get("sl_rebirth_rank", "F")
     sl_stats_loaded = profile.get("sl_stats_loaded", False)
     
-    # 1. Determine target VimeWorld Rank Role
+    # 2. Determine target VimeWorld Rank Role
     target_rank_cfg = None
     for cfg in VIME_RANK_ROLES:
         if cfg["match"] == user_rank:
@@ -425,7 +476,7 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
     if not target_rank_cfg:
         target_rank_cfg = [c for c in VIME_RANK_ROLES if c["match"] == "USER"][0]
 
-    # 2. STRICT ANTI-DEMOTION PROTECTION FOR REBIRTH RANK
+    # 3. STRICT ANTI-DEMOTION PROTECTION FOR REBIRTH RANK
     existing_max_val = -1
     existing_reb_cfg = None
 
@@ -487,35 +538,19 @@ async def sync_user_roles(guild: discord.Guild, member: discord.Member, profile:
         if r not in new_roles:
             new_roles.append(r)
 
-    # 3. Automatic VimeWorld Nickname assignment
-    vime_nickname = profile.get("nickname")
-    should_update_nick = (
-        vime_nickname 
-        and member.id != guild.owner_id 
-        and member.nick != vime_nickname
-    )
     roles_changed = set(new_roles) != set(current_roles)
 
-    try:
-        edit_kwargs = {}
-        if roles_changed:
-            edit_kwargs["roles"] = new_roles
-        if should_update_nick:
-            edit_kwargs["nick"] = vime_nickname
-
-        if edit_kwargs:
-            await member.edit(**edit_kwargs, reason="VimeWorld Auto-Role & Nickname Sync")
-            if roles_changed:
-                logger.info(f"Updated roles for {member.display_name}: {[r.name for r in roles_to_add]}")
-            if should_update_nick:
-                logger.info(f"Updated server nickname for {member.name} to '{vime_nickname}'")
-    except discord.Forbidden:
-        logger.error(
-            f"❌ FORBIDDEN: Bot lacks permission or bot role is too low in hierarchy to manage roles/nickname for {member.display_name}! "
-            f"Make sure the Bot role is dragged ABOVE the user's roles in Discord Server Settings -> Roles, and has 'Manage Nicknames' permission."
-        )
-    except Exception as e:
-        logger.warning(f"Error syncing roles/nickname for member {member.display_name}: {e}")
+    if roles_changed:
+        try:
+            await member.edit(roles=new_roles, reason="VimeWorld Auto-Role Sync")
+            logger.info(f"Updated roles for {member.display_name}: {[r.name for r in roles_to_add]}")
+        except discord.Forbidden:
+            logger.error(
+                f"❌ FORBIDDEN: Bot lacks permission or bot role is too low in hierarchy to manage roles for {member.display_name}! "
+                f"Make sure the Bot role is dragged ABOVE '{assigned_role_names}' in Discord Server Settings -> Roles."
+            )
+        except Exception as e:
+            logger.warning(f"Error syncing roles for member {member.display_name}: {e}")
 
     return assigned_role_names
 
