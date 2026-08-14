@@ -119,7 +119,7 @@ async def fetch_player_status(nickname: str) -> dict:
 async def fetch_full_player_profile(nickname: str) -> dict:
     """
     Fetches comprehensive player profile including level, donator rank, and Solo Leveling stats.
-    Supports rebirth calculation across all seasons (SOLOLEVELING8 down to SOLOLEVELING).
+    Strictly reads stats from the LATEST (CURRENT) active Solo Leveling season.
     """
     status_data = await fetch_player_status(nickname)
     
@@ -179,34 +179,35 @@ async def fetch_full_player_profile(nickname: str) -> dict:
                     data = await resp.json()
                     stats = data.get("stats", {})
                     
-                    best_rebirth = 0
-                    current_season_stats = None
+                    # Dynamically find the LATEST (current) active Solo Leveling season key
+                    sl_seasons = []
+                    for k in stats.keys():
+                        if k == "SOLOLEVELING":
+                            sl_seasons.append((1, k))
+                        elif k.startswith("SOLOLEVELING"):
+                            num_str = k.replace("SOLOLEVELING", "")
+                            if num_str.isdigit():
+                                sl_seasons.append((int(num_str), k))
 
-                    # Check all season keys from SOLOLEVELING8 down to SOLOLEVELING
-                    sl_keys = ["SOLOLEVELING8", "SOLOLEVELING7", "SOLOLEVELING6", "SOLOLEVELING5", "SOLOLEVELING4", "SOLOLEVELING3", "SOLOLEVELING2", "SOLOLEVELING"]
-                    for k in sl_keys:
-                        if k in stats:
-                            if current_season_stats is None:
-                                current_season_stats = stats[k].get("global", {})
-                            r_val = stats[k].get("global", {}).get("rebirth", 0)
-                            if r_val > best_rebirth:
-                                best_rebirth = r_val
-
-                    result["sl_stats_loaded"] = True
-
-                    if current_season_stats:
+                    if sl_seasons:
+                        # Sort by season number descending -> latest active season first (e.g. SOLOLEVELING8)
+                        sl_seasons.sort(key=lambda x: x[0], reverse=True)
+                        current_season_key = sl_seasons[0][1]
+                        
+                        current_season_stats = stats[current_season_key].get("global", {})
+                        rebirth = current_season_stats.get("rebirth", 0)
                         dmg = current_season_stats.get("damage_power", 0)
                         gold = current_season_stats.get("gold", 0)
                         upg = current_season_stats.get("upgrade_points", 0)
 
+                        result["sl_stats_loaded"] = True
                         result["sl_damage_raw"] = dmg
                         result["sl_damage_formatted"] = format_big_number(dmg)
                         result["sl_gold_raw"] = gold
                         result["sl_gold_formatted"] = format_big_number(gold)
                         result["sl_upgrade_points"] = upg
-
-                    result["sl_rebirth"] = best_rebirth
-                    result["sl_rebirth_rank"] = get_rebirth_rank_title(best_rebirth)
+                        result["sl_rebirth"] = rebirth
+                        result["sl_rebirth_rank"] = get_rebirth_rank_title(rebirth)
         except Exception as e:
             logger.warning(f"Error fetching stats for {nickname}: {e}")
 
