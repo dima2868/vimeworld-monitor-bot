@@ -115,6 +115,31 @@ async def check_and_send_dungeon_alerts(bot: Bot):
                     except Exception as err:
                         logger.warning(f"Error sending dungeon_jeju alert to user {user_id}: {err}")
 
+    # 4. Dark Auction Alert (Alert on Saturday at 18:50 MSK - 10 min before 19:00 MSK)
+    if now.weekday() == 5 and hour == 18 and minute == 50:
+        alert_key = ("dark_auction", now.date(), hour, minute)
+        
+        if alert_key not in sent_dungeon_alerts:
+            sent_dungeon_alerts.add(alert_key)
+            
+            # Play Discord Voice Audio
+            asyncio.create_task(discord_bot.play_voice_sound("temnauc.mp3"))
+            
+            subscribers = await db.get_subscribers_for_player("dark_auction")
+            if subscribers:
+                msg = (
+                    f"🏛 <b>ТЁМНЫЙ АУКЦИОН!</b> 🏛\n\n"
+                    f"💰 <b>Тёмный Аукцион</b> начнется через <b>10 минут</b> (в <b>19:00 МСК</b>)!\n"
+                    f"⏰ Время МСК: <b>{now_str}</b>"
+                )
+                for user_id in subscribers:
+                    try:
+                        await bot.send_message(chat_id=user_id, text=msg, parse_mode="HTML")
+                    except TelegramRetryAfter as err:
+                        await asyncio.sleep(err.retry_after + 1)
+                    except Exception as err:
+                        logger.warning(f"Error sending dark_auction alert to user {user_id}: {err}")
+
     # Clean old alert keys periodically
     if len(sent_dungeon_alerts) > 50:
         sent_dungeon_alerts.clear()

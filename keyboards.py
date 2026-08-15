@@ -40,6 +40,7 @@ async def get_monitoring_inline_keyboard(user_id: int) -> InlineKeyboardMarkup:
     hard_sub = "dungeon_hard" in subs
     med_sub = "dungeon_medium" in subs
     jeju_sub = "dungeon_jeju" in subs
+    auc_sub = "dark_auction" in subs
 
     keyboard = [
         # YouTubers
@@ -74,6 +75,12 @@ async def get_monitoring_inline_keyboard(user_id: int) -> InlineKeyboardMarkup:
                 callback_data="toggle_dungeon_jeju"
             )
         ],
+        [
+            InlineKeyboardButton(
+                text=f"🏛 Тёмный Аукцион (Сб 19:00): {'🟢 Включен' if auc_sub else '🔴 Выключен'}",
+                callback_data="toggle_dark_auction"
+            )
+        ],
         # Master toggles
         [
             InlineKeyboardButton(
@@ -102,6 +109,9 @@ def get_admin_inline_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="🔊 Тест: Остров Чеджу", callback_data="test_sound_jeju_raid.mp3"),
+        ],
+        [
+            InlineKeyboardButton(text="🔊 Тест: Тёмный Аукцион", callback_data="test_sound_temnauc.mp3"),
         ],
         [
             InlineKeyboardButton(text="🔊 Тест: Лололошка", callback_data="test_sound_lololoshka_online.mp3"),

@@ -56,6 +56,15 @@ DUNGEONS = {
         "alert_time": (17, 58),
         "start_time": (18, 0),
         "sound": "jeju_raid.mp3"
+    },
+    "dark_auction": {
+        "name": "Тёмный Аукцион",
+        "icon": "🏛",
+        "schedule_desc": "суббота в 19:00 МСК",
+        "day_of_week": 5,
+        "alert_time": (18, 50),
+        "start_time": (19, 0),
+        "sound": "temnauc.mp3"
     }
 }
 

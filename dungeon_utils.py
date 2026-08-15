@@ -89,22 +89,67 @@ def get_next_jeju_raid(now: datetime = None) -> dict:
         "mins_left": mins_left,
     }
 
+def get_next_dark_auction(now: datetime = None) -> dict:
+    """Calculates next Dark Auction (Saturday at 19:00 MSK)."""
+    now = now or get_now_msk()
+    days_ahead = (5 - now.weekday()) % 7
+    target = (now + timedelta(days=days_ahead)).replace(hour=19, minute=0, second=0, microsecond=0)
+    
+    if now >= target:
+        target += timedelta(days=7)
+        
+    delta_sec = int((target - now).total_seconds())
+    days_left = delta_sec // 86400
+    hours_left = (delta_sec % 86400) // 3600
+    mins_left = (delta_sec % 3600) // 60
+    
+    time_str = target.strftime("%H:%M")
+    if target.date() == now.date():
+        date_str = "сегодня"
+    elif target.date() == (now + timedelta(days=1)).date():
+        date_str = "завтра"
+    else:
+        date_str = target.strftime("%d.%m")
+    
+    time_parts = []
+    if days_left > 0:
+        time_parts.append(f"{days_left} д")
+    if hours_left > 0 or days_left > 0:
+        time_parts.append(f"{hours_left} ч")
+    time_parts.append(f"{mins_left} мин")
+    time_remaining = " ".join(time_parts)
+
+    return {
+        "key": "dark_auction",
+        "name": DUNGEONS["dark_auction"]["name"],
+        "icon": DUNGEONS["dark_auction"]["icon"],
+        "formatted_time": f"{time_str} МСК ({date_str})",
+        "total_seconds": delta_sec,
+        "days_left": days_left,
+        "hours_left": hours_left,
+        "mins_left": mins_left,
+        "time_remaining": time_remaining,
+    }
+
 def generate_dungeon_schedule_text() -> str:
     """Generates user-friendly text for upcoming dungeons and raids schedule."""
     hard = get_next_hard_dungeon()
     medium = get_next_medium_dungeon()
     jeju = get_next_jeju_raid()
+    auction = get_next_dark_auction()
     now_str = get_now_msk().strftime("%H:%M:%S")
     
     text = (
-        "🗡 <b>Расписание Подземелий и Рейдов (Solo Leveling VimeWorld):</b>\n\n"
+        "🗡 <b>Расписание Подземелий, Рейдов и Аукциона (Solo Leveling VimeWorld):</b>\n\n"
         f"1. {hard['icon']} <b>{hard['name']}</b> ({DUNGEONS['dungeon_hard']['schedule_desc']})\n"
         f"   🕒 Ближайшее: <b>{hard['formatted_time']}</b> (через <b>{hard['mins_left']} мин</b>)\n\n"
         f"2. {medium['icon']} <b>{medium['name']}</b> ({DUNGEONS['dungeon_medium']['schedule_desc']})\n"
         f"   🕒 Ближайшее: <b>{medium['formatted_time']}</b> (через <b>{medium['mins_left']} мин</b>)\n\n"
         f"3. {jeju['icon']} <b>{jeju['name']}</b> ({DUNGEONS['dungeon_jeju']['schedule_desc']})\n"
         f"   🕒 Ближайшее: <b>{jeju['formatted_time']}</b> (через <b>{jeju['hours_left']} ч {jeju['mins_left']} мин</b>)\n\n"
-        f"🔔 <i>Уведомления и голосовые анонсы приходят ровно за 2 минуты до старта!</i>\n"
+        f"4. {auction['icon']} <b>{auction['name']}</b> ({DUNGEONS['dark_auction']['schedule_desc']})\n"
+        f"   🕒 Ближайшее: <b>{auction['formatted_time']}</b> (через <b>{auction['time_remaining']}</b>)\n\n"
+        f"🔔 <i>Уведомления и голосовые анонсы приходят за 2 мин до подземелий/рейда и за 10 мин до Тёмного Аукциона!</i>\n"
         f"🕒 <i>Текущее время (МСК): {now_str}</i>"
     )
     return text

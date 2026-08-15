@@ -813,7 +813,17 @@ class DiscordAdminView(discord.ui.View):
         btn_jeju.callback = self.make_toggle_callback("sound_dungeon_jeju")
         self.add_item(btn_jeju)
 
-        # 4. Lololoshka
+        # 4. Dark Auction
+        auc_on = self.settings.get("sound_dark_auction", 1)
+        btn_auc = discord.ui.Button(
+            label=f"🏛 Аукцион: {'🟢 ВКЛ' if auc_on else '🔴 ВЫКЛ'}",
+            style=discord.ButtonStyle.success if auc_on else discord.ButtonStyle.danger,
+            custom_id="toggle_sound_dark_auction"
+        )
+        btn_auc.callback = self.make_toggle_callback("sound_dark_auction")
+        self.add_item(btn_auc)
+
+        # 5. Lololoshka
         lol_on = self.settings.get("sound_MrLalalashkaXXL", 1)
         btn_lol = discord.ui.Button(
             label=f"🎬 Лололошка: {'🟢 ВКЛ' if lol_on else '🔴 ВЫКЛ'}",
@@ -823,7 +833,7 @@ class DiscordAdminView(discord.ui.View):
         btn_lol.callback = self.make_toggle_callback("sound_MrLalalashkaXXL")
         self.add_item(btn_lol)
 
-        # 5. FixPlay
+        # 6. FixPlay
         fix_on = self.settings.get("sound_F1xPlay_", 1)
         btn_fix = discord.ui.Button(
             label=f"🎮 Фиксплей: {'🟢 ВКЛ' if fix_on else '🔴 ВЫКЛ'}",
@@ -860,6 +870,7 @@ def generate_admin_embed(settings: dict) -> discord.Embed:
     embed.add_field(name="🗡 Сложное подземелье", value="🟢 Включено" if settings.get("sound_dungeon_hard", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="⚔️ Среднее подземелье", value="🟢 Включено" if settings.get("sound_dungeon_medium", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🌋 Остров Чеджу (18:00)", value="🟢 Включено" if settings.get("sound_dungeon_jeju", 1) else "🔴 Выключено", inline=True)
+    embed.add_field(name="🏛 Тёмный Аукцион (Сб 19:00)", value="🟢 Включено" if settings.get("sound_dark_auction", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🎬 Лололошка", value="🟢 Включено" if settings.get("sound_MrLalalashkaXXL", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🎮 Фиксплей", value="🟢 Включено" if settings.get("sound_F1xPlay_", 1) else "🔴 Выключено", inline=True)
     embed.set_footer(text="Нажимайте на кнопки ниже для переключения статуса")
@@ -955,6 +966,8 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
         setting_key = "sound_dungeon_medium"
     elif sound_filename == "jeju_raid.mp3":
         setting_key = "sound_dungeon_jeju"
+    elif sound_filename == "temnauc.mp3":
+        setting_key = "sound_dark_auction"
     elif sound_filename == "lololoshka_online.mp3":
         setting_key = "sound_MrLalalashkaXXL"
     elif sound_filename == "fixplay_online.mp3":
