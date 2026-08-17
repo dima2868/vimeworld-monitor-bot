@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, timedelta
-from config import DUNGEONS
+from config import DUNGEONS, CLAN_RAID_INTERVAL_MINUTES, CLAN_RAID_ALERT_MINUTES_BEFORE, CLAN_RAID_RESTART_HOUR
 
 MSK_TZ = timezone(timedelta(hours=3))
 
@@ -155,44 +155,45 @@ def generate_dungeon_schedule_text() -> str:
     return text
 
 
-# --- CLAN RAIDS (Solo Leveling Clan Events - Interval: 1h 40min / 100min) ---
-# Anchor reference point: 2026-08-17 09:40 MSK
-ANCHOR_CLAN_RAID_DT = datetime(2026, 8, 17, 9, 40, tzinfo=MSK_TZ)
+# --- CLAN RAIDS (Solo Leveling Clan Events - Interval: 95min / 1h 35m) ---
+# Anchor reference point: 2026-08-17 04:35 MSK
+ANCHOR_CLAN_RAID_DT = datetime(2026, 8, 17, 4, 35, tzinfo=MSK_TZ)
 
 def get_clan_raids_for_date(target_date, restart_mode: bool = True) -> list[datetime]:
     """
     Returns list of datetime objects for clan raids on target_date (MSK).
-    - restart_mode=True: Timer resets at daily 03:00 restart (first raid at 04:40, then +100m).
-    - restart_mode=False: Continuous timer (+100m continuously across restarts).
+    - restart_mode=True: Timer resets at daily 03:00 restart (first raid at 04:35, then +95m).
+    - restart_mode=False: Continuous timer (+95m continuously across restarts).
     """
     start_dt = datetime(target_date.year, target_date.month, target_date.day, 0, 0, tzinfo=MSK_TZ)
     end_dt = start_dt + timedelta(days=1)
+    step = timedelta(minutes=CLAN_RAID_INTERVAL_MINUTES)
     
     if restart_mode:
         restarts = [
-            start_dt.replace(hour=3, minute=0) - timedelta(days=1),
-            start_dt.replace(hour=3, minute=0),
-            start_dt.replace(hour=3, minute=0) + timedelta(days=1)
+            start_dt.replace(hour=CLAN_RAID_RESTART_HOUR, minute=0) - timedelta(days=1),
+            start_dt.replace(hour=CLAN_RAID_RESTART_HOUR, minute=0),
+            start_dt.replace(hour=CLAN_RAID_RESTART_HOUR, minute=0) + timedelta(days=1)
         ]
         raids = []
         for r_start in restarts:
             r_end = r_start + timedelta(days=1)
-            t = r_start + timedelta(minutes=100)
+            t = r_start + step
             while t < r_end:
                 if start_dt <= t < end_dt:
                     raids.append(t)
-                t += timedelta(minutes=100)
+                t += step
         return sorted(list(set(raids)))
     else:
         diff = (start_dt - ANCHOR_CLAN_RAID_DT).total_seconds()
-        k_start = int(diff // (100 * 60))
-        t = ANCHOR_CLAN_RAID_DT + timedelta(minutes=k_start * 100)
+        k_start = int(diff // (CLAN_RAID_INTERVAL_MINUTES * 60))
+        t = ANCHOR_CLAN_RAID_DT + timedelta(minutes=k_start * CLAN_RAID_INTERVAL_MINUTES)
         while t < start_dt:
-            t += timedelta(minutes=100)
+            t += step
         raids = []
         while t < end_dt:
             raids.append(t)
-            t += timedelta(minutes=100)
+            t += step
         return sorted(raids)
 
 def get_next_clan_raid(now: datetime = None, restart_mode: bool = True) -> dict:
@@ -204,7 +205,7 @@ def get_next_clan_raid(now: datetime = None, restart_mode: bool = True) -> dict:
     raids_tomorrow = get_clan_raids_for_date((now + timedelta(days=1)).date(), restart_mode=restart_mode)
     
     all_upcoming = [r for r in raids_today + raids_tomorrow if r >= now]
-    target = all_upcoming[0] if all_upcoming else now + timedelta(minutes=100)
+    target = all_upcoming[0] if all_upcoming else now + timedelta(minutes=CLAN_RAID_INTERVAL_MINUTES)
 
     delta_sec = int((target - now).total_seconds())
     hours_left = delta_sec // 3600
@@ -224,7 +225,7 @@ def get_next_clan_raid(now: datetime = None, restart_mode: bool = True) -> dict:
     time_parts.append(f"{mins_left} мин")
     time_remaining = " ".join(time_parts) if time_parts else "0 мин"
 
-    alert_dt = target - timedelta(minutes=5)
+    alert_dt = target - timedelta(minutes=CLAN_RAID_ALERT_MINUTES_BEFORE)
     alert_time_str = alert_dt.strftime("%H:%M")
 
     return {
