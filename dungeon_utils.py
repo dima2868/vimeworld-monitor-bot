@@ -156,20 +156,32 @@ def generate_dungeon_schedule_text() -> str:
 
 
 # --- CLAN RAIDS (Solo Leveling Clan Events - Interval: 85min / 1h 25m) ---
-# Anchor reference point: 2026-08-17 04:25 MSK
-ANCHOR_CLAN_RAID_DT = datetime(2026, 8, 17, 4, 25, tzinfo=MSK_TZ)
+# Anchor reference point: 2026-08-17 22:00 MSK (actual raid was at 22:00 MSK)
+ANCHOR_CLAN_RAID_DT = datetime(2026, 8, 17, 22, 0, tzinfo=MSK_TZ)
 
 def get_clan_raids_for_date(target_date, restart_mode: bool = True) -> list[datetime]:
     """
     Returns list of datetime objects for clan raids on target_date (MSK).
     - restart_mode=True: Timer resets at daily 03:00 restart (first raid at 04:25, then +85m).
-    - restart_mode=False: Continuous timer (+85m continuously across restarts).
+    - restart_mode=False: Continuous timer (+85m continuously from anchor 22:00 MSK).
     """
     start_dt = datetime(target_date.year, target_date.month, target_date.day, 0, 0, tzinfo=MSK_TZ)
     end_dt = start_dt + timedelta(days=1)
     step = timedelta(minutes=CLAN_RAID_INTERVAL_MINUTES)
     
     if restart_mode:
+        if target_date == ANCHOR_CLAN_RAID_DT.date():
+            diff = (start_dt - ANCHOR_CLAN_RAID_DT).total_seconds()
+            k_start = int(diff // (CLAN_RAID_INTERVAL_MINUTES * 60))
+            t = ANCHOR_CLAN_RAID_DT + timedelta(minutes=k_start * CLAN_RAID_INTERVAL_MINUTES)
+            while t < start_dt:
+                t += step
+            raids = []
+            while t < end_dt:
+                raids.append(t)
+                t += step
+            return sorted(raids)
+
         restarts = [
             start_dt.replace(hour=CLAN_RAID_RESTART_HOUR, minute=0) - timedelta(days=1),
             start_dt.replace(hour=CLAN_RAID_RESTART_HOUR, minute=0),
