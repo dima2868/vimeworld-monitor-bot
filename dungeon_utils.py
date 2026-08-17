@@ -155,15 +155,15 @@ def generate_dungeon_schedule_text() -> str:
     return text
 
 
-# --- CLAN RAIDS (Solo Leveling Clan Events - Interval: 95min / 1h 35m) ---
-# Anchor reference point: 2026-08-17 04:35 MSK
-ANCHOR_CLAN_RAID_DT = datetime(2026, 8, 17, 4, 35, tzinfo=MSK_TZ)
+# --- CLAN RAIDS (Solo Leveling Clan Events - Interval: 85min / 1h 25m) ---
+# Anchor reference point: 2026-08-17 04:25 MSK
+ANCHOR_CLAN_RAID_DT = datetime(2026, 8, 17, 4, 25, tzinfo=MSK_TZ)
 
 def get_clan_raids_for_date(target_date, restart_mode: bool = True) -> list[datetime]:
     """
     Returns list of datetime objects for clan raids on target_date (MSK).
-    - restart_mode=True: Timer resets at daily 03:00 restart (first raid at 04:35, then +95m).
-    - restart_mode=False: Continuous timer (+95m continuously across restarts).
+    - restart_mode=True: Timer resets at daily 03:00 restart (first raid at 04:25, then +85m).
+    - restart_mode=False: Continuous timer (+85m continuously across restarts).
     """
     start_dt = datetime(target_date.year, target_date.month, target_date.day, 0, 0, tzinfo=MSK_TZ)
     end_dt = start_dt + timedelta(days=1)
