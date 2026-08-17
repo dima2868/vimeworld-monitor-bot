@@ -7,6 +7,7 @@ from config import YOUTUBERS, DUNGEONS, CHECK_INTERVAL
 import checker
 import database as db
 import discord_bot
+import dungeon_utils
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,18 @@ async def check_and_send_dungeon_alerts(bot: Bot):
                         await asyncio.sleep(err.retry_after + 1)
                     except Exception as err:
                         logger.warning(f"Error sending dark_auction alert to user {user_id}: {err}")
+
+    # 5. Clan Raid Voice Alert (Alert 5 min before start) - Discord voice ONLY
+    sound_clan_enabled = await db.get_discord_setting("sound_clan_raid", 1)
+    if sound_clan_enabled:
+        restart_mode = bool(await db.get_discord_setting("clan_restart_mode", 1))
+        clan_raid = dungeon_utils.get_next_clan_raid(now, restart_mode=restart_mode)
+        alert_dt = clan_raid["alert_dt"]
+        if now.date() == alert_dt.date() and now.hour == alert_dt.hour and now.minute == alert_dt.minute:
+            alert_key = ("clan_raid", alert_dt.date(), alert_dt.hour, alert_dt.minute)
+            if alert_key not in sent_dungeon_alerts:
+                sent_dungeon_alerts.add(alert_key)
+                asyncio.create_task(discord_bot.play_voice_sound("clan.mp3"))
 
     # Clean old alert keys periodically
     if len(sent_dungeon_alerts) > 50:

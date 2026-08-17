@@ -153,3 +153,92 @@ def generate_dungeon_schedule_text() -> str:
         f"🕒 <i>Текущее время (МСК): {now_str}</i>"
     )
     return text
+
+
+# --- CLAN RAIDS (Solo Leveling Clan Events - Interval: 1h 40min / 100min) ---
+# Anchor reference point: 2026-08-17 09:40 MSK
+ANCHOR_CLAN_RAID_DT = datetime(2026, 8, 17, 9, 40, tzinfo=MSK_TZ)
+
+def get_clan_raids_for_date(target_date, restart_mode: bool = True) -> list[datetime]:
+    """
+    Returns list of datetime objects for clan raids on target_date (MSK).
+    - restart_mode=True: Timer resets at daily 03:00 restart (first raid at 04:40, then +100m).
+    - restart_mode=False: Continuous timer (+100m continuously across restarts).
+    """
+    start_dt = datetime(target_date.year, target_date.month, target_date.day, 0, 0, tzinfo=MSK_TZ)
+    end_dt = start_dt + timedelta(days=1)
+    
+    if restart_mode:
+        restarts = [
+            start_dt.replace(hour=3, minute=0) - timedelta(days=1),
+            start_dt.replace(hour=3, minute=0),
+            start_dt.replace(hour=3, minute=0) + timedelta(days=1)
+        ]
+        raids = []
+        for r_start in restarts:
+            r_end = r_start + timedelta(days=1)
+            t = r_start + timedelta(minutes=100)
+            while t < r_end:
+                if start_dt <= t < end_dt:
+                    raids.append(t)
+                t += timedelta(minutes=100)
+        return sorted(list(set(raids)))
+    else:
+        diff = (start_dt - ANCHOR_CLAN_RAID_DT).total_seconds()
+        k_start = int(diff // (100 * 60))
+        t = ANCHOR_CLAN_RAID_DT + timedelta(minutes=k_start * 100)
+        while t < start_dt:
+            t += timedelta(minutes=100)
+        raids = []
+        while t < end_dt:
+            raids.append(t)
+            t += timedelta(minutes=100)
+        return sorted(raids)
+
+def get_next_clan_raid(now: datetime = None, restart_mode: bool = True) -> dict:
+    """
+    Calculates next upcoming clan raid and time until start/alert.
+    """
+    now = now or get_now_msk()
+    raids_today = get_clan_raids_for_date(now.date(), restart_mode=restart_mode)
+    raids_tomorrow = get_clan_raids_for_date((now + timedelta(days=1)).date(), restart_mode=restart_mode)
+    
+    all_upcoming = [r for r in raids_today + raids_tomorrow if r >= now]
+    target = all_upcoming[0] if all_upcoming else now + timedelta(minutes=100)
+
+    delta_sec = int((target - now).total_seconds())
+    hours_left = delta_sec // 3600
+    mins_left = (delta_sec % 3600) // 60
+    
+    time_str = target.strftime("%H:%M")
+    if target.date() == now.date():
+        date_str = "сегодня"
+    elif target.date() == (now + timedelta(days=1)).date():
+        date_str = "завтра"
+    else:
+        date_str = target.strftime("%d.%m")
+        
+    time_parts = []
+    if hours_left > 0:
+        time_parts.append(f"{hours_left} ч")
+    time_parts.append(f"{mins_left} мин")
+    time_remaining = " ".join(time_parts) if time_parts else "0 мин"
+
+    alert_dt = target - timedelta(minutes=5)
+    alert_time_str = alert_dt.strftime("%H:%M")
+
+    return {
+        "key": "clan_raid",
+        "name": "Клановый рейд",
+        "icon": "🏰",
+        "target_dt": target,
+        "alert_dt": alert_dt,
+        "formatted_time": f"{time_str} МСК ({date_str})",
+        "alert_formatted": f"{alert_time_str} МСК",
+        "total_seconds": delta_sec,
+        "hours_left": hours_left,
+        "mins_left": mins_left,
+        "time_remaining": time_remaining,
+        "restart_mode": restart_mode
+    }
+

@@ -4,6 +4,7 @@ import logging
 from config import DISCORD_BOT_TOKEN, DISCORD_ADMIN_IDS
 import database as db
 import checker
+import dungeon_utils
 
 logger = logging.getLogger(__name__)
 
@@ -823,7 +824,27 @@ class DiscordAdminView(discord.ui.View):
         btn_auc.callback = self.make_toggle_callback("sound_dark_auction")
         self.add_item(btn_auc)
 
-        # 5. Lololoshka
+        # 5. Clan Raid Voice
+        clan_on = self.settings.get("sound_clan_raid", 1)
+        btn_clan = discord.ui.Button(
+            label=f"🏰 Клан Рейд: {'🟢 ВКЛ' if clan_on else '🔴 ВЫКЛ'}",
+            style=discord.ButtonStyle.success if clan_on else discord.ButtonStyle.danger,
+            custom_id="toggle_sound_clan_raid"
+        )
+        btn_clan.callback = self.make_toggle_callback("sound_clan_raid")
+        self.add_item(btn_clan)
+
+        # 6. Clan Restart Mode (Reset at 03:00 vs Continuous)
+        restart_mode = self.settings.get("clan_restart_mode", 1)
+        btn_restart = discord.ui.Button(
+            label=f"🔄 Рестарт (03:00): {'🟢 СБРОС' if restart_mode else '🔴 НЕПРЕРЫВНО'}",
+            style=discord.ButtonStyle.primary if restart_mode else discord.ButtonStyle.secondary,
+            custom_id="toggle_clan_restart_mode"
+        )
+        btn_restart.callback = self.make_toggle_callback("clan_restart_mode")
+        self.add_item(btn_restart)
+
+        # 7. Lololoshka
         lol_on = self.settings.get("sound_MrLalalashkaXXL", 1)
         btn_lol = discord.ui.Button(
             label=f"🎬 Лололошка: {'🟢 ВКЛ' if lol_on else '🔴 ВЫКЛ'}",
@@ -833,7 +854,7 @@ class DiscordAdminView(discord.ui.View):
         btn_lol.callback = self.make_toggle_callback("sound_MrLalalashkaXXL")
         self.add_item(btn_lol)
 
-        # 6. FixPlay
+        # 8. FixPlay
         fix_on = self.settings.get("sound_F1xPlay_", 1)
         btn_fix = discord.ui.Button(
             label=f"🎮 Фиксплей: {'🟢 ВКЛ' if fix_on else '🔴 ВЫКЛ'}",
@@ -871,6 +892,8 @@ def generate_admin_embed(settings: dict) -> discord.Embed:
     embed.add_field(name="⚔️ Среднее подземелье", value="🟢 Включено" if settings.get("sound_dungeon_medium", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🌋 Остров Чеджу (18:00)", value="🟢 Включено" if settings.get("sound_dungeon_jeju", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🏛 Тёмный Аукцион (Сб 19:00)", value="🟢 Включено" if settings.get("sound_dark_auction", 1) else "🔴 Выключено", inline=True)
+    embed.add_field(name="🏰 Клановый рейд (голос)", value="🟢 Включено" if settings.get("sound_clan_raid", 1) else "🔴 Выключено", inline=True)
+    embed.add_field(name="🔄 Режим рестарта клана", value="🟢 Сброс в 03:00 (04:40...)" if settings.get("clan_restart_mode", 1) else "🔴 Непрерывный (+1:40)", inline=True)
     embed.add_field(name="🎬 Лололошка", value="🟢 Включено" if settings.get("sound_MrLalalashkaXXL", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🎮 Фиксплей", value="🟢 Включено" if settings.get("sound_F1xPlay_", 1) else "🔴 Выключено", inline=True)
     embed.set_footer(text="Нажимайте на кнопки ниже для переключения статуса")
@@ -944,6 +967,46 @@ if tree:
         embed = build_compare_embed(p1, p2)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @tree.command(name="clan", description="Расписание клановых рейдов Solo Leveling (интервал 1ч 40м)")
+    async def slash_clan(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        restart_mode = bool(await db.get_discord_setting("clan_restart_mode", 1))
+        now = dungeon_utils.get_now_msk()
+        clan_raid = dungeon_utils.get_next_clan_raid(now, restart_mode=restart_mode)
+        
+        today_raids = dungeon_utils.get_clan_raids_for_date(now.date(), restart_mode=restart_mode)
+        
+        mode_text = "🔄 **Сброс в 03:00** (ежедневно: 04:40, 06:20, 08:00...)" if restart_mode else "⏳ **Непрерывный таймер** (+1:40 сквозь рестарт)"
+        
+        embed = discord.Embed(
+            title="🏰 Расписание Клановых Рейдов Solo Leveling",
+            description=(
+                f"🕒 **Ближайший рейд:** `{clan_raid['formatted_time']}` (через **{clan_raid['time_remaining']}**)\n"
+                f"🔊 **Голосовой анонс:** за 5 минут до старта в `{clan_raid['alert_formatted']}`\n\n"
+                f"⚙️ **Режим расчета:** {mode_text}"
+            ),
+            color=0x9B59B6
+        )
+        
+        # Build schedule list for today
+        schedule_lines = []
+        for r in today_raids:
+            r_str = r.strftime("%H:%M")
+            if r == clan_raid["target_dt"]:
+                schedule_lines.append(f"👉 **`{r_str}`** ⬅️ *(следующий)*")
+            elif r < now:
+                schedule_lines.append(f"~~`{r_str}`~~ ✅")
+            else:
+                schedule_lines.append(f"`{r_str}`")
+                
+        embed.add_field(
+            name=f"📋 Рейды на сегодня ({now.strftime('%d.%m')} МСК)",
+            value="\n".join(schedule_lines) if schedule_lines else "Нет рейдов",
+            inline=False
+        )
+        embed.set_footer(text="Интервал: 1ч 40м (100 мин) | Переключение режима доступно в /admin")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
 
 async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
     """
@@ -968,6 +1031,8 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
         setting_key = "sound_dungeon_jeju"
     elif sound_filename == "temnauc.mp3":
         setting_key = "sound_dark_auction"
+    elif sound_filename == "clan.mp3":
+        setting_key = "sound_clan_raid"
     elif sound_filename == "lololoshka_online.mp3":
         setting_key = "sound_MrLalalashkaXXL"
     elif sound_filename == "fixplay_online.mp3":
