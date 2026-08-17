@@ -64,12 +64,12 @@ def get_next_medium_dungeon(now: datetime = None) -> dict:
     }
 
 def get_next_jeju_raid(now: datetime = None) -> dict:
-    """Calculates next Jeju Island Raid (18:00 MSK)."""
+    """Calculates next Jeju Island Raid (17:00 MSK)."""
     now = now or get_now_msk()
-    target = now.replace(hour=18, minute=0, second=0, microsecond=0)
+    target = now.replace(hour=17, minute=0, second=0, microsecond=0)
     
     if now >= target:
-        # Tomorrow at 18:00 MSK
+        # Tomorrow at 17:00 MSK
         target += timedelta(days=1)
         
     delta_sec = int((target - now).total_seconds())

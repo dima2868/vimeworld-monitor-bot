@@ -30,7 +30,7 @@ async def check_and_send_dungeon_alerts(bot: Bot):
     Checks if a dungeon or raid starts in 2 minutes and sends notifications + plays Discord voice sound.
     - Hard Dungeon: starts at :10 and :40 -> alert at :08 and :38
     - Medium Dungeon: starts at :15 and :45 -> alert at :13 and :43
-    - Jeju Raid: starts at 18:00 MSK -> alert at 17:58 MSK
+    - Jeju Raid: starts at 17:00 MSK -> alert at 16:58 MSK
     """
     now = get_now_msk()
     hour = now.hour
@@ -91,8 +91,8 @@ async def check_and_send_dungeon_alerts(bot: Bot):
                     except Exception as err:
                         logger.warning(f"Error sending dungeon_medium alert to user {user_id}: {err}")
 
-    # 3. Jeju Island Raid Alert (Alert at 17:58 MSK - 2 min before 18:00 MSK)
-    if hour == 17 and minute == 58:
+    # 3. Jeju Island Raid Alert (Alert at 16:58 MSK - 2 min before 17:00 MSK)
+    if hour == 16 and minute == 58:
         alert_key = ("dungeon_jeju", now.date(), hour, minute)
         
         if alert_key not in sent_dungeon_alerts:
@@ -105,7 +105,7 @@ async def check_and_send_dungeon_alerts(bot: Bot):
             if subscribers:
                 msg = (
                     f"🚨 <b>РЕЙД НА ОСТРОВ ЧЕДЖУ!</b> 🚨\n\n"
-                    f"🌋 <b>Рейд на Остров Чеджу</b> начнется через <b>2 минуты</b> (в <b>18:00 МСК</b>)!\n"
+                    f"🌋 <b>Рейд на Остров Чеджу</b> начнется через <b>2 минуты</b> (в <b>17:00 МСК</b>)!\n"
                     f"⏰ Время МСК: <b>{now_str}</b>"
                 )
                 for user_id in subscribers:

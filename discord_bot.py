@@ -890,7 +890,7 @@ def generate_admin_embed(settings: dict) -> discord.Embed:
     )
     embed.add_field(name="🗡 Сложное подземелье", value="🟢 Включено" if settings.get("sound_dungeon_hard", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="⚔️ Среднее подземелье", value="🟢 Включено" if settings.get("sound_dungeon_medium", 1) else "🔴 Выключено", inline=True)
-    embed.add_field(name="🌋 Остров Чеджу (18:00)", value="🟢 Включено" if settings.get("sound_dungeon_jeju", 1) else "🔴 Выключено", inline=True)
+    embed.add_field(name="🌋 Остров Чеджу (17:00)", value="🟢 Включено" if settings.get("sound_dungeon_jeju", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🏛 Тёмный Аукцион (Сб 19:00)", value="🟢 Включено" if settings.get("sound_dark_auction", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🏰 Клановый рейд (голос)", value="🟢 Включено" if settings.get("sound_clan_raid", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🔄 Режим рестарта клана", value="🟢 Сброс в 03:00 (04:35...)" if settings.get("clan_restart_mode", 1) else "🔴 Непрерывный (+1:35)", inline=True)

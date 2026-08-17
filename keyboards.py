@@ -71,7 +71,7 @@ async def get_monitoring_inline_keyboard(user_id: int) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(
-                text=f"🌋 Остров Чеджу (18:00): {'🟢 Включен' if jeju_sub else '🔴 Выключен'}",
+                text=f"🌋 Остров Чеджу (17:00): {'🟢 Включен' if jeju_sub else '🔴 Выключен'}",
                 callback_data="toggle_dungeon_jeju"
             )
         ],

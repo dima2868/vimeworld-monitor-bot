@@ -52,9 +52,9 @@ DUNGEONS = {
     "dungeon_jeju": {
         "name": "Остров Чеджу (Рейд)",
         "icon": "🌋",
-        "schedule_desc": "в 18:00 МСК",
-        "alert_time": (17, 58),
-        "start_time": (18, 0),
+        "schedule_desc": "в 17:00 МСК",
+        "alert_time": (16, 58),
+        "start_time": (17, 0),
         "sound": "jeju_raid.mp3"
     },
     "dark_auction": {
