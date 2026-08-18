@@ -214,13 +214,47 @@ def get_yt_playlist_info(url: str):
     return None
 
 
+def clean_music_query(query: str) -> str:
+    """Cleans URLs, prefixes and share text boilerplate (SoundCloud, YouTube, Spotify)."""
+    if not query:
+        return ""
+    q = query.strip()
+    q = re.sub(r'^(scsearch:|ytsearch:)+', '', q, flags=re.IGNORECASE).strip()
+
+    # Strip SoundCloud share text: 'Listen to X by Y on #SoundCloud' or 'Stream X by Y...'
+    m = re.search(r'(?:Listen to|Stream)\s+(.*?)\s+by\s+(.*?)(?:\s+on\s+.*|\s+https?:.*|$)', q, re.IGNORECASE)
+    if m:
+        track_name = m.group(1).strip()
+        artist = m.group(2).strip()
+        artist = re.sub(r'\s+on\b.*$', '', artist, flags=re.IGNORECASE).strip()
+        return f"{artist} - {track_name}"
+
+    if 'soundcloud.com' in q:
+        if 'on.soundcloud.com' in q:
+            try:
+                req = urllib.request.Request(q, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=4, context=ssl_ctx) as resp:
+                    q = resp.geturl()
+            except Exception:
+                pass
+        parsed = urllib.parse.urlparse(q)
+        path = parsed.path.strip('/')
+        parts = [p.replace('-', ' ') for p in path.split('/') if p and p not in ('sets', 'tracks', 'discover')]
+        if len(parts) >= 2:
+            return f"{parts[0]} - {parts[1]}"
+        elif len(parts) == 1:
+            return parts[0]
+
+    return q
+
+
 def resolve_query_input(query: str = None) -> dict:
     """
     Universal resolver for all inputs:
     - None -> MC POH Discography
     - Spotify Playlist / Album / Track
     - YouTube Playlist / YouTube Music Playlist
-    - SoundCloud URLs
+    - SoundCloud URLs / Share text
     - YouTube / YouTube Music video URLs
     - MC POH numbers / names
     - Text search queries
@@ -247,15 +281,13 @@ def resolve_query_input(query: str = None) -> dict:
         if res:
             return res
 
-    # 3. SoundCloud
-    if 'soundcloud.com' in q:
-        parsed = urllib.parse.urlparse(q)
-        parts = [p.replace('-', ' ') for p in parsed.path.strip('/').split('/') if p and p != 'sets']
-        sc_name = ' '.join(parts) if parts else q
+    # 3. SoundCloud / Share text
+    cleaned_sc = clean_music_query(q)
+    if 'soundcloud.com' in q or re.search(r'(?:Listen to|Stream)\s+', q, re.IGNORECASE):
         return {
             'is_playlist': False,
-            'title': sc_name,
-            'tracks': [{'title': sc_name, 'query': f"scsearch:{sc_name}", 'uploader': 'SoundCloud'}],
+            'title': cleaned_sc,
+            'tracks': [{'title': cleaned_sc, 'query': cleaned_sc, 'uploader': 'SoundCloud'}],
             'source': 'soundcloud'
         }
 
@@ -295,8 +327,8 @@ def extract_track_info_sync(query: str):
     """
     Extracts direct audio stream URL and metadata.
     1. Direct audio links (.mp3, .ogg, .wav, .m4a, etc.)
-    2. YouTube / Search query with yt-dlp
-    3. Automatic fallback to SoundCloud to bypass data center IP bot restrictions.
+    2. YouTube / SoundCloud / Search query with yt-dlp
+    3. Automatic fallback to SoundCloud or YouTube to bypass data center IP bot restrictions.
     """
     try:
         # 1. Direct audio link
@@ -312,11 +344,32 @@ def extract_track_info_sync(query: str):
                 'uploader': 'Прямая ссылка'
             }
 
-        clean_query = clean_youtube_url(query) if ('youtube.com' in query or 'youtu.be' in query) else query
+        clean_query = clean_music_query(query)
+        if clean_query.startswith('http://') or clean_query.startswith('https://'):
+            clean_query = clean_youtube_url(clean_query)
+
         is_yt = 'youtube.com' in clean_query or 'youtu.be' in clean_query
         yt_meta = get_youtube_metadata_oembed(clean_query) if is_yt else None
 
-        # 2. Try YouTube extraction with yt-dlp
+        # 2. If it's SoundCloud or text query (not direct YT URL), try SoundCloud first
+        if not is_yt:
+            try:
+                with yt_dlp.YoutubeDL(SC_OPTIONS) as ydl:
+                    sc_info = ydl.extract_info(f"scsearch:{clean_query}", download=False)
+                    if 'entries' in sc_info and sc_info['entries']:
+                        entry = sc_info['entries'][0]
+                        return {
+                            'title': entry.get('title', clean_query),
+                            'url': entry.get('url'),
+                            'webpage_url': entry.get('webpage_url', clean_query),
+                            'duration': entry.get('duration', 0),
+                            'thumbnail': entry.get('thumbnail'),
+                            'uploader': entry.get('uploader', 'SoundCloud')
+                        }
+            except Exception as sc_err:
+                logger.info(f"SoundCloud search failed ({sc_err}), trying YouTube...")
+
+        # 3. Try YouTube extraction with yt-dlp
         try:
             with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
                 search_query = clean_query if clean_query.startswith('http') else f"ytsearch:{clean_query}"
@@ -335,7 +388,7 @@ def extract_track_info_sync(query: str):
         except Exception as yt_err:
             logger.info(f"YouTube extraction failed ({yt_err}), activating SoundCloud fallback...")
 
-        # 3. Fallback to SoundCloud
+        # 4. Fallback to SoundCloud if YouTube failed
         search_target = yt_meta['title'] if yt_meta else clean_query
         try:
             with yt_dlp.YoutubeDL(SC_OPTIONS) as ydl:
