@@ -104,12 +104,29 @@ def get_youtube_metadata_oembed(url: str):
 
 
 def get_spotify_info(url: str):
-    """Extracts track or playlist metadata from Spotify links."""
-    m = re.search(r'spotify\.com/(track|playlist|album)/([a-zA-Z0-9]+)', url)
+    """Extracts track, playlist or album metadata from Spotify links (including intl-xx, mobile shortlinks and URIs)."""
+    # 1. Spotify URI support (spotify:track:xxx, spotify:playlist:xxx, spotify:album:xxx)
+    uri_match = re.search(r'spotify:(track|playlist|album):([a-zA-Z0-9]+)', url)
+    if uri_match:
+        item_type, item_id = uri_match.group(1), uri_match.group(2)
+        url = f"https://open.spotify.com/{item_type}/{item_id}"
+
+    # 2. Mobile shortlinks (spotify.link / spoti.fi)
+    if 'spotify.link' in url or 'spoti.fi' in url:
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5, context=ssl_ctx) as resp:
+                url = resp.geturl()
+        except Exception as e:
+            logger.debug(f"spotify.link resolution error: {e}")
+
+    # 3. Match track, playlist, or album with optional intl-xx prefix
+    m = re.search(r'spotify\.com/(?:intl-[a-z]+/)?(track|playlist|album)/([a-zA-Z0-9]+)', url)
     if not m:
         return None
     item_type, item_id = m.group(1), m.group(2)
 
+    # 4. Single Track
     if item_type == 'track':
         oembed_url = f"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{item_id}"
         try:
@@ -117,19 +134,21 @@ def get_spotify_info(url: str):
             with urllib.request.urlopen(req, timeout=5, context=ssl_ctx) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 title = data.get('title')
+                author = data.get('author_name')
+                full_name = f"{author} - {title}" if author and author not in title else title
                 return {
                     'is_playlist': False,
-                    'title': title,
-                    'tracks': [{'title': title, 'query': title, 'thumbnail': data.get('thumbnail_url'), 'uploader': 'Spotify'}],
+                    'title': full_name,
+                    'tracks': [{'title': full_name, 'query': full_name, 'thumbnail': data.get('thumbnail_url'), 'uploader': author or 'Spotify'}],
                     'source': 'spotify'
                 }
         except Exception:
-            return None
+            pass
 
-    # Embed page for playlist or album
+    # 5. Embed page for Playlist or Album
     embed_url = f"https://open.spotify.com/embed/{item_type}/{item_id}"
     try:
-        req = urllib.request.Request(embed_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        req = urllib.request.Request(embed_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
         with urllib.request.urlopen(req, timeout=6, context=ssl_ctx) as resp:
             html = resp.read().decode('utf-8')
             match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(\{.*?\})</script>', html, re.DOTALL)
@@ -150,7 +169,7 @@ def get_spotify_info(url: str):
                         'uploader': t_artist or 'Spotify'
                     })
                 if tracks:
-                    return {'is_playlist': True, 'title': playlist_title, 'tracks': tracks, 'source': 'spotify'}
+                    return {'is_playlist': item_type in ('playlist', 'album'), 'title': playlist_title, 'tracks': tracks, 'source': 'spotify'}
 
             res_match = re.search(r'<script id="resource"[^>]*>(\{.*?\})</script>', html, re.DOTALL)
             if res_match:
@@ -171,7 +190,7 @@ def get_spotify_info(url: str):
                         'uploader': artist_str or 'Spotify'
                     })
                 if tracks:
-                    return {'is_playlist': True, 'title': playlist_title, 'tracks': tracks, 'source': 'spotify'}
+                    return {'is_playlist': item_type in ('playlist', 'album'), 'title': playlist_title, 'tracks': tracks, 'source': 'spotify'}
     except Exception:
         pass
     return None
@@ -540,6 +559,7 @@ class MusicPlayer:
         self.lock = asyncio.Lock()
         self.interrupted_for_alert = False
         self._manual_transition = False
+        self._failed_consecutive = 0
 
     def load_mc_poh_playlist(self, shuffle: bool = False):
         """Loads the full MC ПОХ tracklist into the queue."""
@@ -672,9 +692,27 @@ class MusicPlayer:
             track_info = await asyncio.to_thread(extract_track_info_sync, query)
             if not track_info or not track_info.get("url"):
                 logger.warning(f"Could not load audio for '{query}', skipping to next...")
+                self._failed_consecutive += 1
+                if self._failed_consecutive >= min(len(self.queue), 3):
+                    logger.error("Too many consecutive track loading failures, stopping playback.")
+                    self._failed_consecutive = 0
+                    if self.text_channel:
+                        try:
+                            embed = discord.Embed(
+                                title="❌ Не удалось воспроизвести трек",
+                                description=f"Не удалось получить аудиопоток для: `{query}`.\nПопробуйте другую ссылку или поисковый запрос.",
+                                color=0xE74C3C
+                            )
+                            await self.text_channel.send(embed=embed)
+                        except Exception:
+                            pass
+                    await self.stop()
+                    return
                 self.current_index += 1
                 await self._play_current_track()
                 return
+
+            self._failed_consecutive = 0
 
             self.now_playing = {
                 "title": track_info.get("title", track_item.get("title", query)),
