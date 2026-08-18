@@ -32,6 +32,8 @@ MC_POH_PLAYLIST = [
     {"title": "МС ПОХ - Вероника", "file": "20_veronika.mp4", "query": "МС ПОХ Вероника"}
 ]
 
+import urllib.parse
+
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
@@ -40,7 +42,7 @@ YTDL_OPTIONS = {
     'default_search': 'ytsearch',
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'web_creator', 'mweb']
+            'player_client': ['android_creator', 'android', 'tv_embedded']
         }
     }
 }
@@ -55,9 +57,27 @@ FFMPEG_LOCAL_OPTIONS = {
 }
 
 
+def clean_youtube_url(url: str) -> str:
+    """Strips tracking, radio mix (RD...) and playlist params to get pure video URL."""
+    if 'youtube.com' in url or 'youtu.be' in url:
+        parsed = urllib.parse.urlparse(url)
+        if 'youtu.be' in parsed.netloc:
+            video_id = parsed.path.lstrip('/')
+            return f"https://www.youtube.com/watch?v={video_id}"
+        qs = urllib.parse.parse_qs(parsed.query)
+        if 'v' in qs:
+            v_id = qs['v'][0]
+            return f"https://www.youtube.com/watch?v={v_id}"
+    return url
+
+
 def extract_track_info_sync(query: str):
     """Synchronous helper to extract direct audio URL and metadata from YouTube / URL."""
     try:
+        # Clean YouTube URL if needed
+        if query.startswith('http://') or query.startswith('https://'):
+            query = clean_youtube_url(query)
+
         # Check if direct audio link
         direct_extensions = ('.mp3', '.m4a', '.ogg', '.wav', '.aac', '.flac', '.opus')
         if any(query.lower().startswith(p) for p in ('http://', 'https://')) and any(query.lower().split('?')[0].endswith(ext) for ext in direct_extensions):
