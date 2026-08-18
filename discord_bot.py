@@ -8,8 +8,8 @@ import dungeon_utils
 
 logger = logging.getLogger(__name__)
 
-# List of ignored AFK Voice Channel IDs
-EXCLUDED_AFK_CHANNEL_IDS = [553187808630538240]
+# List of ignored/excluded Voice Channel IDs (AFK, Гостиная 2, etc.)
+EXCLUDED_AFK_CHANNEL_IDS = [553187808630538240, 541663825892737034]
 
 # Reference Role ID below which Rebirth Ranks will be placed
 REFERENCE_ROLE_ID = 541667269634424862
