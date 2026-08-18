@@ -1,0 +1,413 @@
+import os
+import random
+import asyncio
+import logging
+import discord
+from discord import app_commands
+import yt_dlp
+
+logger = logging.getLogger(__name__)
+
+# Complete curated discography of MC ПОХ
+MC_POH_PLAYLIST = [
+    {"title": "МС ПОХ - Банька парилка", "query": "МС ПОХ Банька парилка"},
+    {"title": "МС ПОХ - Весенний лес", "query": "МС ПОХ Весенний лес"},
+    {"title": "МС ПОХ - Школа", "query": "МС ПОХ Школа"},
+    {"title": "МС ПОХ - Детство", "query": "МС ПОХ Детство"},
+    {"title": "МС ПОХ - Ярость", "query": "МС ПОХ Ярость"},
+    {"title": "МС ПОХ - Онанизм", "query": "МС ПОХ Онанизм"},
+    {"title": "МС ПОХ - Дудка", "query": "МС ПОХ Дудка"},
+    {"title": "МС ПОХ - С.К.У.Ф.", "query": "МС ПОХ СКУФ"},
+    {"title": "МС ПОХ - Летняя песенка", "query": "МС ПОХ Летняя песенка"},
+    {"title": "МС ПОХ - HORADANCE", "query": "МС ПОХ HORADANCE"},
+    {"title": "МС ПОХ - OLDSCHOOL", "query": "МС ПОХ OLDSCHOOL"},
+    {"title": "МС ПОХ - Даченька", "query": "МС ПОХ Даченька"},
+    {"title": "МС ПОХ - Свидание", "query": "МС ПОХ Свидание"},
+    {"title": "МС ПОХ - Лирика", "query": "МС ПОХ Лирика"},
+    {"title": "МС ПОХ - Сэй Ма Нэйм", "query": "МС ПОХ Сэй Ма Нэйм"},
+    {"title": "МС ПОХ - Л.К.С.Е.", "query": "МС ПОХ ЛКСЕ"},
+    {"title": "МС ПОХ - Жирный", "query": "МС ПОХ Жирный"},
+    {"title": "МС ПОХ - Я и Бал", "query": "МС ПОХ Я и Бал"},
+    {"title": "МС ПОХ - Гетто", "query": "МС ПОХ Гетто"},
+    {"title": "МС ПОХ - Вероника", "query": "МС ПОХ Вероника"}
+]
+
+YTDL_OPTIONS = {
+    'format': 'bestaudio/best',
+    'noplaylist': True,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'ytsearch',
+}
+
+FFMPEG_OPTIONS = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    'options': '-vn -af "volume=1.3"'
+}
+
+def extract_track_info_sync(query: str):
+    """Synchronous helper to extract direct audio URL and metadata from YouTube."""
+    try:
+        with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+            search_query = query if query.startswith('http') else f"ytsearch:{query}"
+            info = ydl.extract_info(search_query, download=False)
+            if 'entries' in info:
+                if not info['entries']:
+                    return None
+                info = info['entries'][0]
+            return {
+                'title': info.get('title', query),
+                'url': info.get('url'),
+                'webpage_url': info.get('webpage_url'),
+                'duration': info.get('duration', 0),
+                'thumbnail': info.get('thumbnail')
+            }
+    except Exception as e:
+        logger.error(f"Error extracting audio with yt-dlp for '{query}': {e}")
+        return None
+
+
+class MusicControlView(discord.ui.View):
+    """Interactive Discord UI button controller for the music player."""
+    def __init__(self, player):
+        super().__init__(timeout=None)
+        self.player = player
+        self.update_buttons()
+
+    def update_buttons(self):
+        self.clear_items()
+
+        # Play / Pause toggle
+        pause_label = "▶️ Продолжить" if self.player.is_paused else "⏸️ Пауза"
+        btn_pause = discord.ui.Button(
+            label=pause_label,
+            style=discord.ButtonStyle.primary if not self.player.is_paused else discord.ButtonStyle.secondary,
+            custom_id="music_pause_resume"
+        )
+        btn_pause.callback = self.on_pause_resume
+        self.add_item(btn_pause)
+
+        # Skip
+        btn_skip = discord.ui.Button(
+            label="⏭️ След.",
+            style=discord.ButtonStyle.secondary,
+            custom_id="music_skip"
+        )
+        btn_skip.callback = self.on_skip
+        self.add_item(btn_skip)
+
+        # Shuffle
+        btn_shuffle = discord.ui.Button(
+            label=f"🔀 {'ВКЛ' if self.player.is_shuffle else 'ВЫКЛ'}",
+            style=discord.ButtonStyle.success if self.player.is_shuffle else discord.ButtonStyle.secondary,
+            custom_id="music_shuffle"
+        )
+        btn_shuffle.callback = self.on_shuffle
+        self.add_item(btn_shuffle)
+
+        # Loop
+        btn_loop = discord.ui.Button(
+            label=f"🔁 {'ВКЛ' if self.player.is_loop else 'ВЫКЛ'}",
+            style=discord.ButtonStyle.success if self.player.is_loop else discord.ButtonStyle.secondary,
+            custom_id="music_loop"
+        )
+        btn_loop.callback = self.on_loop
+        self.add_item(btn_loop)
+
+        # Stop
+        btn_stop = discord.ui.Button(
+            label="⏹️ Стоп",
+            style=discord.ButtonStyle.danger,
+            custom_id="music_stop"
+        )
+        btn_stop.callback = self.on_stop
+        self.add_item(btn_stop)
+
+        # Tracklist
+        btn_list = discord.ui.Button(
+            label="📜 Треки MC ПОХ",
+            style=discord.ButtonStyle.secondary,
+            custom_id="music_list"
+        )
+        btn_list.callback = self.on_list
+        self.add_item(btn_list)
+
+    async def on_pause_resume(self, interaction: discord.Interaction):
+        if self.player.is_paused:
+            self.player.resume()
+            await interaction.response.send_message("▶️ Воспроизведение возобновлено.", ephemeral=True)
+        else:
+            self.player.pause()
+            await interaction.response.send_message("⏸️ Музыка поставлена на паузу.", ephemeral=True)
+        self.update_buttons()
+        if self.player.message:
+            try:
+                await self.player.message.edit(embed=self.player.build_now_playing_embed(), view=self)
+            except Exception:
+                pass
+
+    async def on_skip(self, interaction: discord.Interaction):
+        await interaction.response.send_message("⏭️ Пропуск текущего трека...", ephemeral=True)
+        await self.player.skip()
+
+    async def on_shuffle(self, interaction: discord.Interaction):
+        self.player.toggle_shuffle()
+        self.update_buttons()
+        if self.player.message:
+            try:
+                await self.player.message.edit(embed=self.player.build_now_playing_embed(), view=self)
+            except Exception:
+                pass
+        await interaction.response.send_message(f"🔀 Перемешивание {'включено' if self.player.is_shuffle else 'выключено'}.", ephemeral=True)
+
+    async def on_loop(self, interaction: discord.Interaction):
+        self.player.is_loop = not self.player.is_loop
+        self.update_buttons()
+        if self.player.message:
+            try:
+                await self.player.message.edit(embed=self.player.build_now_playing_embed(), view=self)
+            except Exception:
+                pass
+        await interaction.response.send_message(f"🔁 Повтор плейлиста {'включен' if self.player.is_loop else 'выключен'}.", ephemeral=True)
+
+    async def on_stop(self, interaction: discord.Interaction):
+        await self.player.stop()
+        await interaction.response.send_message("⏹️ Музыка остановлена, бот отключился от канала.", ephemeral=True)
+
+    async def on_list(self, interaction: discord.Interaction):
+        embed = self.player.build_playlist_embed()
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class MusicPlayer:
+    """Singleton music player manager for MC ПОХ playlist & audio queue."""
+    def __init__(self):
+        self.queue = []
+        self.current_index = 0
+        self.is_playing = False
+        self.is_paused = False
+        self.is_loop = True
+        self.is_shuffle = False
+        self.now_playing = None
+        self.voice_client = None
+        self.message = None
+        self.text_channel = None
+        self.lock = asyncio.Lock()
+        self._playback_task = None
+        self.interrupted_for_alert = False
+
+    def load_mc_poh_playlist(self, shuffle: bool = False):
+        """Loads the full MC ПОХ tracklist into the queue."""
+        tracks = list(MC_POH_PLAYLIST)
+        if shuffle:
+            random.shuffle(tracks)
+        self.queue = tracks
+        self.current_index = 0
+
+    def toggle_shuffle(self):
+        self.is_shuffle = not self.is_shuffle
+        if self.is_shuffle and len(self.queue) > 1:
+            current_track = self.queue[self.current_index] if self.queue else None
+            upcoming = [t for i, t in enumerate(self.queue) if i != self.current_index]
+            random.shuffle(upcoming)
+            if current_track:
+                self.queue = [current_track] + upcoming
+                self.current_index = 0
+            else:
+                self.queue = upcoming
+
+    def build_now_playing_embed(self) -> discord.Embed:
+        track = self.now_playing or (self.queue[self.current_index] if self.queue else None)
+        title = track.get("title", "MC ПОХ") if track else "Неизвестный трек"
+        duration_sec = track.get("duration", 0) if track else 0
+        mins = duration_sec // 60
+        secs = duration_sec % 60
+        duration_str = f"{mins}:{secs:02d}" if duration_sec > 0 else "Прямой эфир"
+
+        status_icon = "⏸️ Пауза" if self.is_paused else "▶️ Играет"
+        loop_str = "🟢 ВКЛ" if self.is_loop else "🔴 ВЫКЛ"
+        shuffle_str = "🟢 ВКЛ" if self.is_shuffle else "🔴 ВЫКЛ"
+
+        embed = discord.Embed(
+            title="🔥 Плеер MC ПОХ (Павел Пошутилкин)",
+            description=f"🎵 **Сейчас играет:**\n### 🎤 `{title}`\n",
+            color=0xFF4500
+        )
+        embed.add_field(name="⏱ Длительность", value=f"`{duration_str}`", inline=True)
+        embed.add_field(name="📊 Статус", value=f"`{status_icon}`", inline=True)
+        embed.add_field(name="🔢 Трек в очереди", value=f"`{self.current_index + 1} / {len(self.queue)}`", inline=True)
+        embed.add_field(name="🔁 Зацикливание", value=f"`{loop_str}`", inline=True)
+        embed.add_field(name="🔀 Перемешивание", value=f"`{shuffle_str}`", inline=True)
+
+        if len(self.queue) > self.current_index + 1:
+            next_track = self.queue[self.current_index + 1]["title"]
+            embed.add_field(name="⏭️ Следующий трек", value=f"`{next_track}`", inline=False)
+        elif self.is_loop and len(self.queue) > 0:
+            next_track = self.queue[0]["title"]
+            embed.add_field(name="⏭️ Следующий трек (по кругу)", value=f"`{next_track}`", inline=False)
+
+        embed.set_footer(text="Управляйте воспроизведением с помощью кнопок ниже или команд /play, /pause, /skip, /stop")
+        if track and track.get("thumbnail"):
+            embed.set_thumbnail(url=track["thumbnail"])
+        return embed
+
+    def build_playlist_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="📜 Полный Плейлист MC ПОХ",
+            description="Список всех легендарных треков Павла Пошутилкина в очереди:",
+            color=0xF1C40F
+        )
+        lines = []
+        for idx, item in enumerate(self.queue):
+            marker = "👉 **" if idx == self.current_index else ""
+            end_marker = "** ⬅️ *(играет)*" if idx == self.current_index else ""
+            lines.append(f"{marker}{idx + 1}. {item['title']}{end_marker}")
+
+        embed.add_field(name="🎵 Очередь треков", value="\n".join(lines[:25]), inline=False)
+        embed.set_footer(text=f"Всего треков: {len(self.queue)} | Автоматическое непрерывное воспроизведение")
+        return embed
+
+    async def start_playback(self, voice_client: discord.VoiceClient, text_channel=None):
+        """Starts or continues playback from current index."""
+        self.voice_client = voice_client
+        if text_channel:
+            self.text_channel = text_channel
+            
+        self.is_playing = True
+        self.is_paused = False
+        await self._play_current_track()
+
+    async def _play_current_track(self):
+        if not self.queue or self.current_index >= len(self.queue):
+            if self.is_loop and self.queue:
+                self.current_index = 0
+            else:
+                await self.stop()
+                return
+
+        track_item = self.queue[self.current_index]
+        query = track_item.get("query", track_item.get("title"))
+
+        # Extract audio stream URL via yt-dlp asynchronously
+        track_info = await asyncio.to_thread(extract_track_info_sync, query)
+        if not track_info or not track_info.get("url"):
+            logger.warning(f"Could not extract audio for track '{query}', skipping to next...")
+            self.current_index += 1
+            await self._play_current_track()
+            return
+
+        self.now_playing = {
+            "title": track_item.get("title", track_info["title"]),
+            "url": track_info["url"],
+            "duration": track_info["duration"],
+            "thumbnail": track_info.get("thumbnail")
+        }
+
+        if not self.voice_client or not self.voice_client.is_connected():
+            logger.warning("Voice client is not connected for music playback.")
+            self.is_playing = False
+            return
+
+        if self.voice_client.is_playing():
+            self.voice_client.stop()
+
+        try:
+            audio_source = discord.FFmpegPCMAudio(
+                track_info["url"],
+                before_options=FFMPEG_OPTIONS['before_options'],
+                options=FFMPEG_OPTIONS['options']
+            )
+
+            def after_playback(error):
+                if error:
+                    logger.error(f"Error during audio playback: {error}")
+                if self.interrupted_for_alert:
+                    return
+                # Schedule next track in asyncio event loop
+                asyncio.run_coroutine_threadsafe(self._on_track_finished(), self.voice_client.loop)
+
+            self.voice_client.play(audio_source, after=after_playback)
+            self.is_playing = True
+            self.is_paused = False
+            logger.info(f"Now playing MC POH track: {self.now_playing['title']}")
+
+            # Send or update Embed in channel
+            if self.text_channel:
+                embed = self.build_now_playing_embed()
+                view = MusicControlView(self)
+                if self.message:
+                    try:
+                        await self.message.edit(embed=embed, view=view)
+                    except Exception:
+                        self.message = await self.text_channel.send(embed=embed, view=view)
+                else:
+                    self.message = await self.text_channel.send(embed=embed, view=view)
+        except Exception as e:
+            logger.error(f"Error starting audio stream for '{self.now_playing['title']}': {e}")
+            self.current_index += 1
+            await self._play_current_track()
+
+    async def _on_track_finished(self):
+        if not self.is_playing:
+            return
+        self.current_index += 1
+        if self.current_index >= len(self.queue):
+            if self.is_loop:
+                self.current_index = 0
+                if self.is_shuffle:
+                    random.shuffle(self.queue)
+            else:
+                await self.stop()
+                return
+        await self._play_current_track()
+
+    def pause(self):
+        if self.voice_client and self.voice_client.is_playing():
+            self.voice_client.pause()
+            self.is_paused = True
+
+    def resume(self):
+        if self.voice_client and self.voice_client.is_paused():
+            self.voice_client.resume()
+            self.is_paused = False
+
+    async def skip(self):
+        if self.voice_client:
+            self.voice_client.stop()
+            # Stop will trigger after callback or we advance manually
+            self.current_index += 1
+            if self.current_index >= len(self.queue):
+                if self.is_loop:
+                    self.current_index = 0
+                else:
+                    await self.stop()
+                    return
+            await self._play_current_track()
+
+    async def stop(self):
+        self.is_playing = False
+        self.is_paused = False
+        self.now_playing = None
+        if self.voice_client and self.voice_client.is_connected():
+            if self.voice_client.is_playing() or self.voice_client.is_paused():
+                self.voice_client.stop()
+            try:
+                await self.voice_client.disconnect()
+            except Exception:
+                pass
+            self.voice_client = None
+
+        if self.message:
+            try:
+                embed = discord.Embed(
+                    title="⏹️ Воспроизведение MC ПОХ остановлено",
+                    description="Бот отключился от голосового канала. Включить снова: `/play`",
+                    color=0x95A5A6
+                )
+                await self.message.edit(embed=embed, view=None)
+            except Exception:
+                pass
+            self.message = None
+
+# Global music player instance
+music_player = MusicPlayer()
