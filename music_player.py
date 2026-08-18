@@ -2,6 +2,9 @@ import os
 import random
 import asyncio
 import logging
+import urllib.parse
+import urllib.request
+import json
 import discord
 from discord import app_commands
 import yt_dlp
@@ -32,8 +35,6 @@ MC_POH_PLAYLIST = [
     {"title": "МС ПОХ - Вероника", "file": "20_veronika.mp4", "query": "МС ПОХ Вероника"}
 ]
 
-import urllib.parse
-
 YTDL_OPTIONS = {
     'format': 'bestaudio/best',
     'noplaylist': True,
@@ -45,6 +46,14 @@ YTDL_OPTIONS = {
             'player_client': ['android_creator', 'android', 'tv_embedded']
         }
     }
+}
+
+SC_OPTIONS = {
+    'format': 'bestaudio/best',
+    'noplaylist': True,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'scsearch'
 }
 
 FFMPEG_STREAM_OPTIONS = {
@@ -71,14 +80,33 @@ def clean_youtube_url(url: str) -> str:
     return url
 
 
-def extract_track_info_sync(query: str):
-    """Synchronous helper to extract direct audio URL and metadata from YouTube / URL."""
+def get_youtube_metadata_oembed(url: str):
+    """Fetches video title, author and thumbnail from public YouTube oEmbed without auth or bot checks."""
     try:
-        # Clean YouTube URL if needed
-        if query.startswith('http://') or query.startswith('https://'):
-            query = clean_youtube_url(query)
+        clean_url = clean_youtube_url(url)
+        oembed_url = f"https://www.youtube.com/oembed?url={urllib.parse.quote(clean_url)}&format=json"
+        req = urllib.request.Request(oembed_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return {
+                'title': data.get('title'),
+                'author': data.get('author_name'),
+                'thumbnail': data.get('thumbnail_url'),
+                'webpage_url': clean_url
+            }
+    except Exception:
+        return None
 
-        # Check if direct audio link
+
+def extract_track_info_sync(query: str):
+    """
+    Extracts direct audio stream URL and metadata.
+    1. Direct audio links (.mp3, .ogg, .wav, .m4a, etc.)
+    2. YouTube / Search query with yt-dlp
+    3. Automatic fallback to SoundCloud to bypass data center IP bot restrictions.
+    """
+    try:
+        # 1. Direct audio link
         direct_extensions = ('.mp3', '.m4a', '.ogg', '.wav', '.aac', '.flac', '.opus')
         if any(query.lower().startswith(p) for p in ('http://', 'https://')) and any(query.lower().split('?')[0].endswith(ext) for ext in direct_extensions):
             filename = query.split('/')[-1].split('?')[0]
@@ -91,23 +119,50 @@ def extract_track_info_sync(query: str):
                 'uploader': 'Прямая ссылка'
             }
 
-        with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
-            search_query = query if (query.startswith('http://') or query.startswith('https://')) else f"ytsearch:{query}"
-            info = ydl.extract_info(search_query, download=False)
-            if 'entries' in info:
-                if not info['entries']:
-                    return None
-                info = info['entries'][0]
-            return {
-                'title': info.get('title', query),
-                'url': info.get('url'),
-                'webpage_url': info.get('webpage_url', query),
-                'duration': info.get('duration', 0),
-                'thumbnail': info.get('thumbnail'),
-                'uploader': info.get('uploader', info.get('channel', 'YouTube'))
-            }
+        clean_query = clean_youtube_url(query) if ('youtube.com' in query or 'youtu.be' in query) else query
+        is_yt = 'youtube.com' in clean_query or 'youtu.be' in clean_query
+        yt_meta = get_youtube_metadata_oembed(clean_query) if is_yt else None
+
+        # 2. Try YouTube extraction with yt-dlp
+        try:
+            with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+                search_query = clean_query if clean_query.startswith('http') else f"ytsearch:{clean_query}"
+                info = ydl.extract_info(search_query, download=False)
+                if 'entries' in info and info['entries']:
+                    info = info['entries'][0]
+                if info and info.get('url'):
+                    return {
+                        'title': info.get('title') or (yt_meta.get('title') if yt_meta else clean_query),
+                        'url': info.get('url'),
+                        'webpage_url': info.get('webpage_url', clean_query),
+                        'duration': info.get('duration', 0),
+                        'thumbnail': info.get('thumbnail') or (yt_meta.get('thumbnail') if yt_meta else None),
+                        'uploader': info.get('uploader') or (yt_meta.get('author') if yt_meta else 'YouTube')
+                    }
+        except Exception as yt_err:
+            logger.info(f"YouTube extraction failed ({yt_err}), activating SoundCloud fallback...")
+
+        # 3. Fallback to SoundCloud
+        search_target = yt_meta['title'] if yt_meta else clean_query
+        try:
+            with yt_dlp.YoutubeDL(SC_OPTIONS) as ydl:
+                sc_info = ydl.extract_info(f"scsearch:{search_target}", download=False)
+                if 'entries' in sc_info and sc_info['entries']:
+                    entry = sc_info['entries'][0]
+                    return {
+                        'title': (yt_meta.get('title') if yt_meta else None) or entry.get('title', search_target),
+                        'url': entry.get('url'),
+                        'webpage_url': clean_query if is_yt else entry.get('webpage_url', clean_query),
+                        'duration': entry.get('duration', 0),
+                        'thumbnail': (yt_meta.get('thumbnail') if yt_meta else None) or entry.get('thumbnail'),
+                        'uploader': (yt_meta.get('author') if yt_meta else None) or entry.get('uploader', 'SoundCloud')
+                    }
+        except Exception as sc_err:
+            logger.error(f"SoundCloud fallback also failed for '{search_target}': {sc_err}")
+
+        return None
     except Exception as e:
-        logger.error(f"Error extracting audio with yt-dlp for '{query}': {e}")
+        logger.error(f"Fatal error extracting audio for '{query}': {e}")
         return None
 
 
@@ -224,7 +279,7 @@ class MusicControlView(discord.ui.View):
 
 
 class MusicPlayer:
-    """Singleton music player manager for MC ПОХ playlist & YouTube/URL audio streaming."""
+    """Singleton music player manager for MC ПОХ playlist & YouTube/SoundCloud audio streaming."""
     def __init__(self):
         self.queue = []
         self.current_index = 0
@@ -274,7 +329,7 @@ class MusicPlayer:
 
         uploader_str = f"👤 **Автор:** `{uploader}`\n" if uploader else ""
         webpage_url = track.get("webpage_url") if track else None
-        link_str = f"🔗 [Ссылка на источник]({webpage_url})\n" if webpage_url and webpage_url.startswith("http") else ""
+        link_str = f"🔗 [Ссылка на трек]({webpage_url})\n" if webpage_url and webpage_url.startswith("http") else ""
 
         status_icon = "⏸️ Пауза" if self.is_paused else "▶️ Играет"
         loop_str = "🟢 ВКЛ" if self.is_loop else "🔴 ВЫКЛ"
@@ -359,7 +414,7 @@ class MusicPlayer:
                 "uploader": "MC ПОХ (Локальный файл)"
             }
         else:
-            # Online stream via URL / YouTube Search
+            # Online stream via URL / YouTube / SoundCloud
             query = track_item.get("query", track_item.get("title"))
             track_info = await asyncio.to_thread(extract_track_info_sync, query)
             if not track_info or not track_info.get("url"):
