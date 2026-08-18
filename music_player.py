@@ -4,12 +4,17 @@ import asyncio
 import logging
 import urllib.parse
 import urllib.request
+import ssl
 import json
+import re
 import discord
 from discord import app_commands
 import yt_dlp
 
 logger = logging.getLogger(__name__)
+
+# SSL context for HTTPS requests
+ssl_ctx = ssl._create_unverified_context()
 
 # Complete curated discography of MC ПОХ with local file mappings
 MC_POH_PLAYLIST = [
@@ -86,7 +91,7 @@ def get_youtube_metadata_oembed(url: str):
         clean_url = clean_youtube_url(url)
         oembed_url = f"https://www.youtube.com/oembed?url={urllib.parse.quote(clean_url)}&format=json"
         req = urllib.request.Request(oembed_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=4, context=ssl_ctx) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             return {
                 'title': data.get('title'),
@@ -96,6 +101,194 @@ def get_youtube_metadata_oembed(url: str):
             }
     except Exception:
         return None
+
+
+def get_spotify_info(url: str):
+    """Extracts track or playlist metadata from Spotify links."""
+    m = re.search(r'spotify\.com/(track|playlist|album)/([a-zA-Z0-9]+)', url)
+    if not m:
+        return None
+    item_type, item_id = m.group(1), m.group(2)
+
+    if item_type == 'track':
+        oembed_url = f"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{item_id}"
+        try:
+            req = urllib.request.Request(oembed_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5, context=ssl_ctx) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                title = data.get('title')
+                return {
+                    'is_playlist': False,
+                    'title': title,
+                    'tracks': [{'title': title, 'query': title, 'thumbnail': data.get('thumbnail_url'), 'uploader': 'Spotify'}],
+                    'source': 'spotify'
+                }
+        except Exception:
+            return None
+
+    # Embed page for playlist or album
+    embed_url = f"https://open.spotify.com/embed/{item_type}/{item_id}"
+    try:
+        req = urllib.request.Request(embed_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req, timeout=6, context=ssl_ctx) as resp:
+            html = resp.read().decode('utf-8')
+            match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(\{.*?\})</script>', html, re.DOTALL)
+            if match:
+                data = json.loads(match.group(1))
+                entity = data.get('props', {}).get('pageProps', {}).get('state', {}).get('data', {}).get('entity', {})
+                playlist_title = entity.get('title') or entity.get('name') or "Spotify Playlist"
+                raw_tracklist = entity.get('trackList', [])
+                tracks = []
+                for item in raw_tracklist:
+                    t_title = item.get('title')
+                    t_artist = item.get('subtitle')
+                    full_name = f"{t_artist} - {t_title}" if t_artist else t_title
+                    tracks.append({
+                        'title': full_name,
+                        'query': full_name,
+                        'duration': int(item.get('duration', 0) / 1000),
+                        'uploader': t_artist or 'Spotify'
+                    })
+                if tracks:
+                    return {'is_playlist': True, 'title': playlist_title, 'tracks': tracks, 'source': 'spotify'}
+
+            res_match = re.search(r'<script id="resource"[^>]*>(\{.*?\})</script>', html, re.DOTALL)
+            if res_match:
+                data = json.loads(res_match.group(1))
+                playlist_title = data.get('name', 'Spotify Playlist')
+                track_items = data.get('tracks', {}).get('items', [])
+                tracks = []
+                for item in track_items:
+                    t = item.get('track', item)
+                    t_title = t.get('name')
+                    artists = [a.get('name') for a in t.get('artists', []) if a.get('name')]
+                    artist_str = ", ".join(artists) if artists else ""
+                    full_name = f"{artist_str} - {t_title}" if artist_str else t_title
+                    tracks.append({
+                        'title': full_name,
+                        'query': full_name,
+                        'duration': int(t.get('duration_ms', 0) / 1000),
+                        'uploader': artist_str or 'Spotify'
+                    })
+                if tracks:
+                    return {'is_playlist': True, 'title': playlist_title, 'tracks': tracks, 'source': 'spotify'}
+    except Exception:
+        pass
+    return None
+
+
+def get_yt_playlist_info(url: str):
+    """Extracts tracklist from YouTube / YouTube Music playlists."""
+    ydl_opts = {
+        'extract_flat': True,
+        'quiet': True,
+        'no_warnings': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']
+            }
+        }
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(url, download=False)
+            if 'entries' in info and info['entries']:
+                pl_title = info.get('title', 'YouTube Playlist')
+                tracks = []
+                for entry in info['entries']:
+                    if not entry:
+                        continue
+                    t_title = entry.get('title')
+                    t_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                    tracks.append({
+                        'title': t_title,
+                        'query': t_url,
+                        'url': t_url,
+                        'duration': entry.get('duration', 0),
+                        'uploader': entry.get('uploader') or entry.get('channel', 'YouTube')
+                    })
+                if tracks:
+                    return {'is_playlist': True, 'title': pl_title, 'tracks': tracks, 'source': 'youtube_playlist'}
+        except Exception:
+            pass
+    return None
+
+
+def resolve_query_input(query: str = None) -> dict:
+    """
+    Universal resolver for all inputs:
+    - None -> MC POH Discography
+    - Spotify Playlist / Album / Track
+    - YouTube Playlist / YouTube Music Playlist
+    - SoundCloud URLs
+    - YouTube / YouTube Music video URLs
+    - MC POH numbers / names
+    - Text search queries
+    """
+    if not query:
+        return {
+            'is_playlist': True,
+            'title': 'MC ПОХ (Полная дискография)',
+            'tracks': list(MC_POH_PLAYLIST),
+            'source': 'mc_poh'
+        }
+
+    q = query.strip()
+
+    # 1. Spotify
+    if 'spotify.com' in q:
+        res = get_spotify_info(q)
+        if res:
+            return res
+
+    # 2. YouTube / YouTube Music Playlist (list=PL... or /playlist)
+    if ('youtube.com' in q or 'youtu.be' in q) and ('list=' in q or '/playlist' in q) and not ('list=RD' in q):
+        res = get_yt_playlist_info(q)
+        if res:
+            return res
+
+    # 3. SoundCloud
+    if 'soundcloud.com' in q:
+        parsed = urllib.parse.urlparse(q)
+        parts = [p.replace('-', ' ') for p in parsed.path.strip('/').split('/') if p and p != 'sets']
+        sc_name = ' '.join(parts) if parts else q
+        return {
+            'is_playlist': False,
+            'title': sc_name,
+            'tracks': [{'title': sc_name, 'query': f"scsearch:{sc_name}", 'uploader': 'SoundCloud'}],
+            'source': 'soundcloud'
+        }
+
+    # 4. MC POH track number (1-20)
+    if q.isdigit():
+        num = int(q)
+        if 1 <= num <= len(MC_POH_PLAYLIST):
+            track = MC_POH_PLAYLIST[num - 1]
+            return {
+                'is_playlist': False,
+                'title': track['title'],
+                'tracks': [track],
+                'source': 'mc_poh'
+            }
+
+    # 5. MC POH track name match
+    for t in MC_POH_PLAYLIST:
+        if q.lower() in t['title'].lower():
+            return {
+                'is_playlist': False,
+                'title': t['title'],
+                'tracks': [t],
+                'source': 'mc_poh'
+            }
+
+    # 6. YouTube Single Track / Search
+    clean_q = clean_youtube_url(q)
+    return {
+        'is_playlist': False,
+        'title': clean_q,
+        'tracks': [{'title': clean_q, 'query': clean_q, 'uploader': 'Онлайн'}],
+        'source': 'single'
+    }
 
 
 def extract_track_info_sync(query: str):
@@ -224,7 +417,7 @@ class MusicControlView(discord.ui.View):
 
         # Tracklist
         btn_list = discord.ui.Button(
-            label="📜 Очередь треков",
+            label="📜 Очередь",
             style=discord.ButtonStyle.secondary,
             custom_id="music_list"
         )
@@ -279,7 +472,7 @@ class MusicControlView(discord.ui.View):
 
 
 class MusicPlayer:
-    """Singleton music player manager for MC ПОХ playlist & YouTube/SoundCloud audio streaming."""
+    """Singleton music player manager for MC ПОХ, YouTube, Spotify, and SoundCloud streaming."""
     def __init__(self):
         self.queue = []
         self.current_index = 0
@@ -319,11 +512,12 @@ class MusicPlayer:
         track = self.now_playing or (self.queue[self.current_index] if self.queue and self.current_index < len(self.queue) else None)
         title = track.get("title", "Музыка") if track else "Неизвестный трек"
         uploader = track.get("uploader") if track else None
+        
         duration_str = ""
         if track:
             try:
                 raw_dur = float(track.get("duration") or 0)
-                if raw_dur > 10000: # SoundCloud milliseconds
+                if raw_dur > 10000:
                     raw_dur = raw_dur / 1000.0
                 total_sec = int(raw_dur)
                 if total_sec > 0:
@@ -333,7 +527,7 @@ class MusicPlayer:
             except Exception:
                 duration_str = ""
 
-        uploader_str = f"👤 **Автор:** `{uploader}`\n" if uploader else ""
+        uploader_str = f"👤 **Автор / Источник:** `{uploader}`\n" if uploader else ""
         webpage_url = track.get("webpage_url") if track else None
         link_str = f"🔗 [Ссылка на трек]({webpage_url})\n" if webpage_url and webpage_url.startswith("http") else ""
 
@@ -371,7 +565,7 @@ class MusicPlayer:
     def build_playlist_embed(self) -> discord.Embed:
         embed = discord.Embed(
             title="📜 Текущая Очередь Воспроизведения",
-            description="Список треков в текущей очереди плеера:",
+            description=f"Всего треков в очереди: **{len(self.queue)}**",
             color=0xF1C40F
         )
         lines = []
@@ -385,7 +579,7 @@ class MusicPlayer:
             shown_lines.append(f"... и ещё {len(lines) - 25} треков")
 
         embed.add_field(name="🎵 Список треков", value="\n".join(shown_lines) if shown_lines else "Очередь пуста", inline=False)
-        embed.set_footer(text=f"Всего треков: {len(self.queue)} | Автоматическое непрерывное воспроизведение")
+        embed.set_footer(text=f"Автоматическое непрерывное воспроизведение")
         return embed
 
     async def start_playback(self, voice_client: discord.VoiceClient, text_channel=None):
@@ -420,7 +614,7 @@ class MusicPlayer:
                 "uploader": "MC ПОХ (Локальный файл)"
             }
         else:
-            # Online stream via URL / YouTube / SoundCloud
+            # Online stream via URL / YouTube / Spotify / SoundCloud
             query = track_item.get("query", track_item.get("title"))
             track_info = await asyncio.to_thread(extract_track_info_sync, query)
             if not track_info or not track_info.get("url"):
@@ -433,9 +627,9 @@ class MusicPlayer:
                 "title": track_info.get("title", track_item.get("title", query)),
                 "url": track_info["url"],
                 "webpage_url": track_info.get("webpage_url"),
-                "duration": track_info.get("duration", 0),
-                "thumbnail": track_info.get("thumbnail"),
-                "uploader": track_info.get("uploader", "Онлайн")
+                "duration": track_info.get("duration", track_item.get("duration", 0)),
+                "thumbnail": track_info.get("thumbnail") or track_item.get("thumbnail"),
+                "uploader": track_info.get("uploader") or track_item.get("uploader", "Онлайн")
             }
             audio_source = discord.FFmpegPCMAudio(
                 track_info["url"],

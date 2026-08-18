@@ -5,7 +5,7 @@ from config import DISCORD_BOT_TOKEN, DISCORD_ADMIN_IDS
 import database as db
 import checker
 import dungeon_utils
-from music_player import music_player, MC_POH_PLAYLIST
+from music_player import music_player, MC_POH_PLAYLIST, resolve_query_input
 
 logger = logging.getLogger(__name__)
 
@@ -1008,8 +1008,8 @@ if tree:
         embed.set_footer(text="Интервал: 1ч 15м (75 мин) | Переключение режима доступно в /admin")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @tree.command(name="play", description="Включить плейлист MC ПОХ (Павел Пошутилкин) или найти трек")
-    @app_commands.describe(query="Номер трека (1-20) или название трека (оставьте пустым для всего плейлиста)")
+    @tree.command(name="play", description="Включить музыку: Spotify, YouTube, SoundCloud, YouTube Music, MC ПОХ")
+    @app_commands.describe(query="Ссылка (YouTube / Spotify / SoundCloud), название трека/плейлиста или номер трека MC ПОХ")
     async def slash_play(interaction: discord.Interaction, query: str = None):
         await interaction.response.defer(ephemeral=False)
         
@@ -1019,7 +1019,7 @@ if tree:
             target_vc = await find_active_human_voice_channel()
             
         if not target_vc:
-            await interaction.followup.send("❌ **Зайдите в голосовой канал**, чтобы включить музыку MC ПОХ!", ephemeral=True)
+            await interaction.followup.send("❌ **Зайдите в голосовой канал**, чтобы включить музыку!", ephemeral=True)
             return
 
         if target_vc.id in EXCLUDED_AFK_CHANNEL_IDS or (interaction.guild.afk_channel and target_vc.id == interaction.guild.afk_channel.id):
@@ -1037,41 +1037,51 @@ if tree:
             await interaction.followup.send(f"❌ Не удалось подключиться к голосовому каналу: {e}", ephemeral=True)
             return
 
-        # 2. Setup queue
-        if not query:
-            # Full MC POH playlist
-            music_player.load_mc_poh_playlist()
-            await interaction.followup.send(f"🔥 **Загружен полный плейлист MC ПОХ ({len(MC_POH_PLAYLIST)} треков)!** Начинаем...", ephemeral=False)
-        else:
-            query = query.strip()
-            # If user passed a number like 1, 2, 3...
-            if query.isdigit():
-                num = int(query)
-                if 1 <= num <= len(MC_POH_PLAYLIST):
-                    music_player.load_mc_poh_playlist()
-                    music_player.current_index = num - 1
-                    track_title = MC_POH_PLAYLIST[num - 1]["title"]
-                    await interaction.followup.send(f"🎵 Включаю трек **№{num}**: `{track_title}`!", ephemeral=False)
-                else:
-                    await interaction.followup.send(f"❌ В плейлисте MC ПОХ всего {len(MC_POH_PLAYLIST)} треков (укажите число от 1 до {len(MC_POH_PLAYLIST)}).", ephemeral=True)
-                    return
-            else:
-                # Check if it matches any MC POH track name
-                match_found = False
-                for idx, t in enumerate(MC_POH_PLAYLIST):
-                    if query.lower() in t["title"].lower():
-                        music_player.load_mc_poh_playlist()
-                        music_player.current_index = idx
-                        await interaction.followup.send(f"🔥 Найден трек MC ПОХ: `{t['title']}`!", ephemeral=False)
-                        match_found = True
-                        break
-                if not match_found:
-                    # Custom search query
-                    music_player.queue = [{"title": f"Поиск: {query}", "query": query}]
-                    music_player.current_index = 0
-                    await interaction.followup.send(f"🔍 Ищу и запускаю: `{query}`...", ephemeral=False)
+        # 2. Resolve input in background thread
+        res = await asyncio.to_thread(resolve_query_input, query)
+        if not res or not res.get("tracks"):
+            await interaction.followup.send(f"❌ Не удалось найти или загрузить треки по запросу: `{query}`", ephemeral=True)
+            return
 
-        await music_player.start_playback(voice_client, interaction.channel)
+        tracks = res["tracks"]
+        is_pl = res.get("is_playlist", False)
+        title = res.get("title", query or "Плейлист")
+        source = res.get("source", "single")
+
+        if is_pl:
+            # Full playlist replacement
+            music_player.queue = list(tracks)
+            music_player.current_index = 0
+            
+            source_icon = "🟢 Spotify" if source == "spotify" else ("🔴 YouTube" if source == "youtube_playlist" else "🔥 MC ПОХ")
+            embed = discord.Embed(
+                title=f"📥 Загружен плейлист: {title}",
+                description=(
+                    f"🏷 **Источник:** `{source_icon}`\n"
+                    f"🔢 **Всего треков:** `{len(tracks)}`\n"
+                    f"▶️ **Запуск первого трека:** `{tracks[0]['title']}`"
+                ),
+                color=0x2ECC71
+            )
+            await interaction.followup.send(embed=embed, ephemeral=False)
+            await music_player.start_playback(voice_client, interaction.channel)
+        else:
+            # Single track
+            single_track = tracks[0]
+            if music_player.is_playing and voice_client and (voice_client.is_playing() or voice_client.is_paused()):
+                music_player.queue.append(single_track)
+                pos = len(music_player.queue)
+                embed = discord.Embed(
+                    title="➕ Трек добавлен в очередь",
+                    description=f"🎵 **Трек:** `{single_track['title']}`\n🔢 **Позиция в очереди:** `#{pos}`",
+                    color=0x3498DB
+                )
+                await interaction.followup.send(embed=embed, ephemeral=False)
+            else:
+                music_player.queue = [single_track]
+                music_player.current_index = 0
+                await interaction.followup.send(f"▶️ **Запускаю:** `{single_track['title']}`...", ephemeral=False)
+                await music_player.start_playback(voice_client, interaction.channel)
 
     @tree.command(name="pause", description="Поставить музыку на паузу")
     async def slash_pause(interaction: discord.Interaction):
