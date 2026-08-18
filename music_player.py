@@ -82,6 +82,9 @@ def clean_youtube_url(url: str) -> str:
         if 'v' in qs:
             v_id = qs['v'][0]
             return f"https://www.youtube.com/watch?v={v_id}"
+        if 'list' in qs:
+            list_id = qs['list'][0]
+            return f"https://www.youtube.com/playlist?list={list_id}"
     return url
 
 
@@ -532,9 +535,12 @@ class MusicControlView(discord.ui.View):
         self.add_item(btn_list)
 
     async def on_pause_resume(self, interaction: discord.Interaction):
-        if self.player.is_paused:
-            self.player.resume()
-            await interaction.response.send_message("▶️ Воспроизведение возобновлено.", ephemeral=True)
+        if self.player.is_paused or not (self.player.voice_client and self.player.voice_client.is_playing()):
+            resumed = await self.player.resume_playback(interaction)
+            if resumed:
+                await interaction.response.send_message("▶️ Воспроизведение возобновлено.", ephemeral=True)
+            else:
+                await interaction.response.send_message("❌ Очередь пуста. Включите трек через `/play`.", ephemeral=True)
         else:
             self.player.pause()
             await interaction.response.send_message("⏸️ Музыка поставлена на паузу.", ephemeral=True)
@@ -829,6 +835,29 @@ class MusicPlayer:
         if self.voice_client and self.voice_client.is_paused():
             self.voice_client.resume()
             self.is_paused = False
+
+    async def resume_playback(self, interaction: discord.Interaction = None) -> bool:
+        """Resumes paused voice stream or restarts playback from current track."""
+        if self.voice_client and self.voice_client.is_connected():
+            if self.voice_client.is_paused():
+                self.voice_client.resume()
+                self.is_paused = False
+                self.is_playing = True
+                return True
+            elif not self.voice_client.is_playing() and self.queue:
+                self.is_paused = False
+                self.is_playing = True
+                await self._play_current_track()
+                return True
+        elif self.queue:
+            target_vc = interaction.user.voice.channel if (interaction and interaction.user and interaction.user.voice) else None
+            if target_vc:
+                self.voice_client = await target_vc.connect()
+                self.is_paused = False
+                self.is_playing = True
+                await self._play_current_track()
+                return True
+        return False
 
     async def skip(self):
         if not self.voice_client or not self.is_playing:

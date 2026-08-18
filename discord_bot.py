@@ -1093,11 +1093,11 @@ if tree:
 
     @tree.command(name="resume", description="Продолжить воспроизведение музыки")
     async def slash_resume(interaction: discord.Interaction):
-        if not music_player.is_paused:
-            await interaction.response.send_message("❌ Музыка не на паузе.", ephemeral=True)
-            return
-        music_player.resume()
-        await interaction.response.send_message("▶️ Воспроизведение возобновлено.", ephemeral=False)
+        resumed = await music_player.resume_playback(interaction)
+        if resumed:
+            await interaction.response.send_message("▶️ Воспроизведение возобновлено.", ephemeral=False)
+        else:
+            await interaction.response.send_message("❌ Сейчас ничего не играет и очередь пуста. Включите трек через `/play`.", ephemeral=True)
 
     @tree.command(name="skip", description="Переключить на следующий трек")
     async def slash_skip(interaction: discord.Interaction):
