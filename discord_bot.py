@@ -5,7 +5,6 @@ from config import DISCORD_BOT_TOKEN, DISCORD_ADMIN_IDS
 import database as db
 import checker
 import dungeon_utils
-from music_player import music_player, MC_POH_PLAYLIST, resolve_query_input
 
 logger = logging.getLogger(__name__)
 
@@ -1008,125 +1007,6 @@ if tree:
         embed.set_footer(text="Интервал: 1ч 15м (75 мин) | Переключение режима доступно в /admin")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @tree.command(name="play", description="Включить музыку: Spotify, YouTube, SoundCloud, YouTube Music, MC ПОХ")
-    @app_commands.describe(query="Ссылка (YouTube / Spotify / SoundCloud), название трека/плейлиста или номер трека MC ПОХ")
-    async def slash_play(interaction: discord.Interaction, query: str = None):
-        await interaction.response.defer(ephemeral=False)
-        
-        # 1. Determine target voice channel
-        target_vc = interaction.user.voice.channel if (interaction.user and interaction.user.voice) else None
-        if not target_vc:
-            target_vc = await find_active_human_voice_channel()
-            
-        if not target_vc:
-            await interaction.followup.send("❌ **Зайдите в голосовой канал**, чтобы включить музыку!", ephemeral=True)
-            return
-
-        if target_vc.id in EXCLUDED_AFK_CHANNEL_IDS or (interaction.guild.afk_channel and target_vc.id == interaction.guild.afk_channel.id):
-            await interaction.followup.send("❌ Нельзя воспроизводить музыку в **AFK канале** или **Гостиной 2**!", ephemeral=True)
-            return
-
-        global voice_client
-        try:
-            if voice_client and voice_client.is_connected():
-                if voice_client.channel.id != target_vc.id:
-                    await voice_client.move_to(target_vc)
-            else:
-                voice_client = await target_vc.connect()
-        except Exception as e:
-            await interaction.followup.send(f"❌ Не удалось подключиться к голосовому каналу: {e}", ephemeral=True)
-            return
-
-        # 2. Resolve input in background thread
-        res = await asyncio.to_thread(resolve_query_input, query)
-        if not res or not res.get("tracks"):
-            await interaction.followup.send(f"❌ Не удалось найти или загрузить треки по запросу: `{query}`", ephemeral=True)
-            return
-
-        tracks = res["tracks"]
-        is_pl = res.get("is_playlist", False)
-        title = res.get("title", query or "Плейлист")
-        source = res.get("source", "single")
-
-        if is_pl:
-            # Full playlist replacement
-            music_player.queue = list(tracks)
-            music_player.current_index = 0
-            
-            source_icon = "🟢 Spotify" if source == "spotify" else ("🔴 YouTube" if source == "youtube_playlist" else "🔥 MC ПОХ")
-            embed = discord.Embed(
-                title=f"📥 Загружен плейлист: {title}",
-                description=(
-                    f"🏷 **Источник:** `{source_icon}`\n"
-                    f"🔢 **Всего треков:** `{len(tracks)}`\n"
-                    f"▶️ **Запуск первого трека:** `{tracks[0]['title']}`"
-                ),
-                color=0x2ECC71
-            )
-            await interaction.followup.send(embed=embed, ephemeral=False)
-            await music_player.start_playback(voice_client, interaction.channel)
-        else:
-            # Single track
-            single_track = tracks[0]
-            if music_player.is_playing and voice_client and (voice_client.is_playing() or voice_client.is_paused()):
-                music_player.queue.append(single_track)
-                pos = len(music_player.queue)
-                embed = discord.Embed(
-                    title="➕ Трек добавлен в очередь",
-                    description=f"🎵 **Трек:** `{single_track['title']}`\n🔢 **Позиция в очереди:** `#{pos}`",
-                    color=0x3498DB
-                )
-                await interaction.followup.send(embed=embed, ephemeral=False)
-            else:
-                music_player.queue = [single_track]
-                music_player.current_index = 0
-                await interaction.followup.send(f"▶️ **Запускаю:** `{single_track['title']}`...", ephemeral=False)
-                await music_player.start_playback(voice_client, interaction.channel)
-
-    @tree.command(name="pause", description="Поставить музыку на паузу")
-    async def slash_pause(interaction: discord.Interaction):
-        if not music_player.is_playing:
-            await interaction.response.send_message("❌ Сейчас ничего не играет.", ephemeral=True)
-            return
-        music_player.pause()
-        await interaction.response.send_message("⏸️ Музыка поставлена на паузу.", ephemeral=False)
-
-    @tree.command(name="resume", description="Продолжить воспроизведение музыки")
-    async def slash_resume(interaction: discord.Interaction):
-        resumed = await music_player.resume_playback(interaction)
-        if resumed:
-            await interaction.response.send_message("▶️ Воспроизведение возобновлено.", ephemeral=False)
-        else:
-            await interaction.response.send_message("❌ Сейчас ничего не играет и очередь пуста. Включите трек через `/play`.", ephemeral=True)
-
-    @tree.command(name="skip", description="Переключить на следующий трек")
-    async def slash_skip(interaction: discord.Interaction):
-        if not music_player.is_playing:
-            await interaction.response.send_message("❌ Сейчас ничего не играет.", ephemeral=True)
-            return
-        await interaction.response.send_message("⏭️ Переключаю на следующий трек...", ephemeral=False)
-        await music_player.skip()
-
-    @tree.command(name="stop", description="Остановить воспроизведение и отключить бота")
-    async def slash_stop(interaction: discord.Interaction):
-        await music_player.stop()
-        await interaction.response.send_message("⏹️ Музыка остановлена, бот вышел из голосового канала.", ephemeral=False)
-
-    @tree.command(name="queue", description="Показать очередь и полный список всех треков MC ПОХ")
-    async def slash_queue(interaction: discord.Interaction):
-        if not music_player.queue:
-            music_player.load_mc_poh_playlist()
-        embed = music_player.build_playlist_embed()
-        await interaction.response.send_message(embed=embed, ephemeral=False)
-
-    @tree.command(name="shuffle", description="Перемешать текущую очередь треков")
-    async def slash_shuffle(interaction: discord.Interaction):
-        if not music_player.queue:
-            music_player.load_mc_poh_playlist()
-        music_player.toggle_shuffle()
-        await interaction.response.send_message(f"🔀 Плейлист перемешан! Статус: `{'ВКЛ' if music_player.is_shuffle else 'ВЫКЛ'}`", ephemeral=False)
-
-
 async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
     """
     Plays an MP3/OGG sound file in the active Discord Voice Channel ONLY IF:
@@ -1170,7 +1050,7 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
     if not target_vc:
         msg = "🔇 Ни один человек не найден в активных голосовых каналах (AFK каналы игнорируются)! Зайдите в активный войс и повторите тест."
         logger.info(f"Skipping Discord voice alert '{sound_filename}': {msg}")
-        if voice_client and voice_client.is_connected() and not music_player.is_playing:
+        if voice_client and voice_client.is_connected():
             try:
                 await voice_client.disconnect()
             except Exception:
@@ -1198,10 +1078,6 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
         logger.info(f"Connected to Discord Voice Channel '{target_vc.name}' with human members.")
 
         if voice_client and voice_client.is_connected():
-            music_was_playing = music_player.is_playing and not music_player.is_paused
-            if music_was_playing:
-                music_player.interrupted_for_alert = True
-
             if voice_client.is_playing():
                 voice_client.stop()
                 
@@ -1210,7 +1086,7 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
             voice_client.play(audio_source)
             logger.info(f"Playing Discord voice alert (+400% volume): {sound_filename} in channel '{target_vc.name}'")
             
-            # Background task to resume music or disconnect cleanly
+            # Background task to disconnect cleanly after alert finishes
             async def after_alert_action():
                 global voice_client
                 try:
@@ -1218,23 +1094,21 @@ async def play_voice_sound(sound_filename: str) -> tuple[bool, str]:
                         await asyncio.sleep(0.5)
                     await asyncio.sleep(0.5)
                     
-                    if music_was_playing and voice_client and voice_client.is_connected():
-                        music_player.interrupted_for_alert = False
-                        logger.info("Resuming MC POH music playback after voice alert...")
-                        await music_player._play_current_track()
-                    else:
-                        if voice_client and voice_client.is_connected() and not music_player.is_playing:
-                            await voice_client.disconnect()
-                            voice_client = None
-                            logger.info(f"Disconnected from Discord voice channel after playing {sound_filename}.")
+                    if voice_client and voice_client.is_connected():
+                        await voice_client.disconnect()
+                        voice_client = None
+                        logger.info(f"Disconnected from Discord voice channel after playing {sound_filename}.")
                 except Exception as ex:
                     logger.warning(f"Error handling post-alert voice action: {ex}")
-                    if not music_was_playing:
-                        voice_client = None
+                    voice_client = None
 
             asyncio.create_task(after_alert_action())
             
             return True, f"🔊 Проигрываю звук <b>{sound_filename}</b> в канале <b>{target_vc.name}</b>!"
+    except Exception as e:
+        err_msg = f"❌ Ошибка воспроизведения звука: {e}"
+        logger.error(err_msg)
+        return False, err_msg
     except Exception as e:
         err_msg = f"❌ Ошибка воспроизведения звука: {e}"
         logger.error(err_msg)
