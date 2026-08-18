@@ -8,28 +8,28 @@ import yt_dlp
 
 logger = logging.getLogger(__name__)
 
-# Complete curated discography of MC ПОХ
+# Complete curated discography of MC ПОХ with local file mappings
 MC_POH_PLAYLIST = [
-    {"title": "МС ПОХ - Банька парилка", "query": "МС ПОХ Банька парилка"},
-    {"title": "МС ПОХ - Весенний лес", "query": "МС ПОХ Весенний лес"},
-    {"title": "МС ПОХ - Школа", "query": "МС ПОХ Школа"},
-    {"title": "МС ПОХ - Детство", "query": "МС ПОХ Детство"},
-    {"title": "МС ПОХ - Ярость", "query": "МС ПОХ Ярость"},
-    {"title": "МС ПОХ - Онанизм", "query": "МС ПОХ Онанизм"},
-    {"title": "МС ПОХ - Дудка", "query": "МС ПОХ Дудка"},
-    {"title": "МС ПОХ - С.К.У.Ф.", "query": "МС ПОХ СКУФ"},
-    {"title": "МС ПОХ - Летняя песенка", "query": "МС ПОХ Летняя песенка"},
-    {"title": "МС ПОХ - HORADANCE", "query": "МС ПОХ HORADANCE"},
-    {"title": "МС ПОХ - OLDSCHOOL", "query": "МС ПОХ OLDSCHOOL"},
-    {"title": "МС ПОХ - Даченька", "query": "МС ПОХ Даченька"},
-    {"title": "МС ПОХ - Свидание", "query": "МС ПОХ Свидание"},
-    {"title": "МС ПОХ - Лирика", "query": "МС ПОХ Лирика"},
-    {"title": "МС ПОХ - Сэй Ма Нэйм", "query": "МС ПОХ Сэй Ма Нэйм"},
-    {"title": "МС ПОХ - Л.К.С.Е.", "query": "МС ПОХ ЛКСЕ"},
-    {"title": "МС ПОХ - Жирный", "query": "МС ПОХ Жирный"},
-    {"title": "МС ПОХ - Я и Бал", "query": "МС ПОХ Я и Бал"},
-    {"title": "МС ПОХ - Гетто", "query": "МС ПОХ Гетто"},
-    {"title": "МС ПОХ - Вероника", "query": "МС ПОХ Вероника"}
+    {"title": "МС ПОХ - Банька парилка", "file": "01_banka_parilka.mp4", "query": "МС ПОХ Банька парилка"},
+    {"title": "МС ПОХ - Весенний лес", "file": "02_vesenniy_les.mp4", "query": "МС ПОХ Весенний лес"},
+    {"title": "МС ПОХ - Школа", "file": "03_shkola.mp4", "query": "МС ПОХ Школа"},
+    {"title": "МС ПОХ - Детство", "file": "04_detstvo.mp4", "query": "МС ПОХ Детство"},
+    {"title": "МС ПОХ - Ярость", "file": "05_yarost.mp4", "query": "МС ПОХ Ярость"},
+    {"title": "МС ПОХ - Онанизм", "file": "06_onanizm.mp4", "query": "МС ПОХ Онанизм"},
+    {"title": "МС ПОХ - Дудка", "file": "07_dudka.mp4", "query": "МС ПОХ Дудка"},
+    {"title": "МС ПОХ - С.К.У.Ф.", "file": "08_skuf.mp4", "query": "МС ПОХ СКУФ"},
+    {"title": "МС ПОХ - Летняя песенка", "file": "09_letnyaya_pesenka.mp4", "query": "МС ПОХ Летняя песенка"},
+    {"title": "МС ПОХ - HORADANCE", "file": "10_horadance.mp4", "query": "МС ПОХ HORADANCE"},
+    {"title": "МС ПОХ - OLDSCHOOL", "file": "11_oldschool.mp4", "query": "МС ПОХ OLDSCHOOL"},
+    {"title": "МС ПОХ - Даченька", "file": "12_dachenka.mp4", "query": "МС ПОХ Даченька"},
+    {"title": "МС ПОХ - Свидание", "file": "13_svidanie.mp4", "query": "МС ПОХ Свидание"},
+    {"title": "МС ПОХ - Лирика", "file": "14_lirika.mp4", "query": "МС ПОХ Лирика"},
+    {"title": "МС ПОХ - Сэй Ма Нэйм", "file": "15_say_my_name.mp4", "query": "МС ПОХ Сэй Ма Нэйм"},
+    {"title": "МС ПОХ - Л.К.С.Е.", "file": "16_lkse.mp4", "query": "МС ПОХ ЛКСЕ"},
+    {"title": "МС ПОХ - Жирный", "file": "17_zhirniy.mp4", "query": "МС ПОХ Жирный"},
+    {"title": "МС ПОХ - Я и Бал", "file": "18_ya_i_bal.mp4", "query": "МС ПОХ Я и Бал"},
+    {"title": "МС ПОХ - Гетто", "file": "19_ghetto.mp4", "query": "МС ПОХ Гетто"},
+    {"title": "МС ПОХ - Вероника", "file": "20_veronika.mp4", "query": "МС ПОХ Вероника"}
 ]
 
 YTDL_OPTIONS = {
@@ -38,12 +38,22 @@ YTDL_OPTIONS = {
     'quiet': True,
     'no_warnings': True,
     'default_search': 'ytsearch',
+    'extractor_args': {
+        'youtube': {
+            'player_client': ['android', 'web_creator']
+        }
+    }
 }
 
 FFMPEG_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
     'options': '-vn -af "volume=1.3"'
 }
+
+FFMPEG_LOCAL_OPTIONS = {
+    'options': '-vn -af "volume=1.3"'
+}
+
 
 def extract_track_info_sync(query: str):
     """Synchronous helper to extract direct audio URL and metadata from YouTube."""
@@ -193,7 +203,6 @@ class MusicPlayer:
         self.message = None
         self.text_channel = None
         self.lock = asyncio.Lock()
-        self._playback_task = None
         self.interrupted_for_alert = False
 
     def load_mc_poh_playlist(self, shuffle: bool = False):
@@ -219,10 +228,6 @@ class MusicPlayer:
     def build_now_playing_embed(self) -> discord.Embed:
         track = self.now_playing or (self.queue[self.current_index] if self.queue else None)
         title = track.get("title", "MC ПОХ") if track else "Неизвестный трек"
-        duration_sec = track.get("duration", 0) if track else 0
-        mins = duration_sec // 60
-        secs = duration_sec % 60
-        duration_str = f"{mins}:{secs:02d}" if duration_sec > 0 else "Прямой эфир"
 
         status_icon = "⏸️ Пауза" if self.is_paused else "▶️ Играет"
         loop_str = "🟢 ВКЛ" if self.is_loop else "🔴 ВЫКЛ"
@@ -233,7 +238,6 @@ class MusicPlayer:
             description=f"🎵 **Сейчас играет:**\n### 🎤 `{title}`\n",
             color=0xFF4500
         )
-        embed.add_field(name="⏱ Длительность", value=f"`{duration_str}`", inline=True)
         embed.add_field(name="📊 Статус", value=f"`{status_icon}`", inline=True)
         embed.add_field(name="🔢 Трек в очереди", value=f"`{self.current_index + 1} / {len(self.queue)}`", inline=True)
         embed.add_field(name="🔁 Зацикливание", value=f"`{loop_str}`", inline=True)
@@ -254,7 +258,7 @@ class MusicPlayer:
     def build_playlist_embed(self) -> discord.Embed:
         embed = discord.Embed(
             title="📜 Полный Плейлист MC ПОХ",
-            description="Список всех легендарных треков Павла Пошутилкина в очереди:",
+            description="Список всех 20 легендарных треков Павла Пошутилкина в очереди:",
             color=0xF1C40F
         )
         lines = []
@@ -286,22 +290,36 @@ class MusicPlayer:
                 return
 
         track_item = self.queue[self.current_index]
-        query = track_item.get("query", track_item.get("title"))
+        local_filename = track_item.get("file")
+        local_path = os.path.join("sounds", "mcpoh", local_filename) if local_filename else None
 
-        # Extract audio stream URL via yt-dlp asynchronously
-        track_info = await asyncio.to_thread(extract_track_info_sync, query)
-        if not track_info or not track_info.get("url"):
-            logger.warning(f"Could not extract audio for track '{query}', skipping to next...")
-            self.current_index += 1
-            await self._play_current_track()
-            return
+        # Check if local file exists
+        if local_path and os.path.exists(local_path):
+            audio_source = discord.FFmpegPCMAudio(local_path, options=FFMPEG_LOCAL_OPTIONS['options'])
+            self.now_playing = {
+                "title": track_item.get("title", local_filename),
+                "thumbnail": None
+            }
+        else:
+            # Fallback to online stream via yt-dlp
+            query = track_item.get("query", track_item.get("title"))
+            track_info = await asyncio.to_thread(extract_track_info_sync, query)
+            if not track_info or not track_info.get("url"):
+                logger.warning(f"Could not load track '{query}', skipping to next...")
+                self.current_index += 1
+                await self._play_current_track()
+                return
 
-        self.now_playing = {
-            "title": track_item.get("title", track_info["title"]),
-            "url": track_info["url"],
-            "duration": track_info["duration"],
-            "thumbnail": track_info.get("thumbnail")
-        }
+            self.now_playing = {
+                "title": track_item.get("title", track_info["title"]),
+                "url": track_info["url"],
+                "thumbnail": track_info.get("thumbnail")
+            }
+            audio_source = discord.FFmpegPCMAudio(
+                track_info["url"],
+                before_options=FFMPEG_OPTIONS['before_options'],
+                options=FFMPEG_OPTIONS['options']
+            )
 
         if not self.voice_client or not self.voice_client.is_connected():
             logger.warning("Voice client is not connected for music playback.")
@@ -312,12 +330,6 @@ class MusicPlayer:
             self.voice_client.stop()
 
         try:
-            audio_source = discord.FFmpegPCMAudio(
-                track_info["url"],
-                before_options=FFMPEG_OPTIONS['before_options'],
-                options=FFMPEG_OPTIONS['options']
-            )
-
             def after_playback(error):
                 if error:
                     logger.error(f"Error during audio playback: {error}")
@@ -343,7 +355,7 @@ class MusicPlayer:
                 else:
                     self.message = await self.text_channel.send(embed=embed, view=view)
         except Exception as e:
-            logger.error(f"Error starting audio stream for '{self.now_playing['title']}': {e}")
+            logger.error(f"Error starting audio for '{self.now_playing['title']}': {e}")
             self.current_index += 1
             await self._play_current_track()
 
@@ -374,7 +386,6 @@ class MusicPlayer:
     async def skip(self):
         if self.voice_client:
             self.voice_client.stop()
-            # Stop will trigger after callback or we advance manually
             self.current_index += 1
             if self.current_index >= len(self.queue):
                 if self.is_loop:
