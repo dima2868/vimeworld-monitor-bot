@@ -319,13 +319,19 @@ class MusicPlayer:
         track = self.now_playing or (self.queue[self.current_index] if self.queue and self.current_index < len(self.queue) else None)
         title = track.get("title", "Музыка") if track else "Неизвестный трек"
         uploader = track.get("uploader") if track else None
-        duration_sec = track.get("duration", 0) if track else 0
-        
         duration_str = ""
-        if duration_sec and duration_sec > 0:
-            mins = duration_sec // 60
-            secs = duration_sec % 60
-            duration_str = f"⏱ **Длительность:** `{mins}:{secs:02d}`\n"
+        if track:
+            try:
+                raw_dur = float(track.get("duration") or 0)
+                if raw_dur > 10000: # SoundCloud milliseconds
+                    raw_dur = raw_dur / 1000.0
+                total_sec = int(raw_dur)
+                if total_sec > 0:
+                    mins = total_sec // 60
+                    secs = total_sec % 60
+                    duration_str = f"⏱ **Длительность:** `{mins}:{secs:02d}`\n"
+            except Exception:
+                duration_str = ""
 
         uploader_str = f"👤 **Автор:** `{uploader}`\n" if uploader else ""
         webpage_url = track.get("webpage_url") if track else None
