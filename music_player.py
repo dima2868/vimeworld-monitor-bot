@@ -342,12 +342,39 @@ def resolve_query_input(query: str = None) -> dict:
     }
 
 
+def generate_search_candidates(query: str) -> list[str]:
+    """Generates clean variations of artist + title queries (e.g. from Spotify) to maximize search hit rate."""
+    candidates = [query]
+    if ' - ' in query:
+        artist_part, title_part = query.split(' - ', 1)
+        clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', title_part).strip()
+        primary_artist = re.split(r'[,&]|\bfeat\.?\b|\bft\.?\b', artist_part, flags=re.IGNORECASE)[0].strip()
+        
+        candidates.append(f"{primary_artist} {clean_title}")
+        candidates.append(f"{primary_artist} {title_part}")
+        candidates.append(clean_title)
+        candidates.append(title_part)
+        
+        artists = [a.strip() for a in re.split(r'[,&]', artist_part) if a.strip()]
+        if len(artists) > 1:
+            candidates.append(f"{artists[1]} {clean_title}")
+
+    seen = set()
+    result = []
+    for c in candidates:
+        c_clean = c.strip()
+        if c_clean and c_clean not in seen:
+            seen.add(c_clean)
+            result.append(c_clean)
+    return result
+
+
 def extract_track_info_sync(query: str):
     """
     Extracts direct audio stream URL and metadata.
     1. Direct audio links (.mp3, .ogg, .wav, .m4a, etc.)
-    2. YouTube / SoundCloud / Search query with yt-dlp
-    3. Automatic fallback to SoundCloud or YouTube to bypass data center IP bot restrictions.
+    2. Direct YouTube URL resolution
+    3. Multi-candidate search across SoundCloud and YouTube (for Spotify / text queries).
     """
     try:
         # 1. Direct audio link
@@ -370,61 +397,69 @@ def extract_track_info_sync(query: str):
         is_yt = 'youtube.com' in clean_query or 'youtu.be' in clean_query
         yt_meta = get_youtube_metadata_oembed(clean_query) if is_yt else None
 
-        # 2. If it's SoundCloud or text query (not direct YT URL), try SoundCloud first
-        if not is_yt:
+        # 2. If direct YouTube URL, try YouTube first with direct link, then fallback
+        if is_yt:
+            try:
+                with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+                    info = ydl.extract_info(clean_query, download=False)
+                    if 'entries' in info and info['entries']:
+                        info = info['entries'][0]
+                    if info and info.get('url'):
+                        return {
+                            'title': info.get('title') or (yt_meta.get('title') if yt_meta else clean_query),
+                            'url': info.get('url'),
+                            'webpage_url': info.get('webpage_url', clean_query),
+                            'duration': info.get('duration', 0),
+                            'thumbnail': info.get('thumbnail') or (yt_meta.get('thumbnail') if yt_meta else None),
+                            'uploader': info.get('uploader') or (yt_meta.get('author') if yt_meta else 'YouTube')
+                        }
+            except Exception as yt_err:
+                logger.info(f"Direct YouTube extraction failed ({yt_err}), falling back to search...")
+
+        # 3. Search candidates across SoundCloud and YouTube (for Spotify / text queries)
+        search_base = yt_meta['title'] if (is_yt and yt_meta) else clean_query
+        candidates = generate_search_candidates(search_base)
+
+        for cand in candidates:
+            # Try SoundCloud
             try:
                 with yt_dlp.YoutubeDL(SC_OPTIONS) as ydl:
-                    sc_info = ydl.extract_info(f"scsearch:{clean_query}", download=False)
+                    sc_info = ydl.extract_info(f"scsearch:{cand}", download=False)
                     if 'entries' in sc_info and sc_info['entries']:
                         entry = sc_info['entries'][0]
-                        return {
-                            'title': entry.get('title', clean_query),
-                            'url': entry.get('url'),
-                            'webpage_url': entry.get('webpage_url', clean_query),
-                            'duration': entry.get('duration', 0),
-                            'thumbnail': entry.get('thumbnail'),
-                            'uploader': entry.get('uploader', 'SoundCloud')
-                        }
-            except Exception as sc_err:
-                logger.info(f"SoundCloud search failed ({sc_err}), trying YouTube...")
+                        if entry and entry.get('url'):
+                            return {
+                                'title': (yt_meta.get('title') if yt_meta else None) or entry.get('title', clean_query),
+                                'url': entry.get('url'),
+                                'webpage_url': clean_query if is_yt else entry.get('webpage_url', clean_query),
+                                'duration': entry.get('duration', 0),
+                                'thumbnail': (yt_meta.get('thumbnail') if yt_meta else None) or entry.get('thumbnail'),
+                                'uploader': (yt_meta.get('author') if yt_meta else None) or entry.get('uploader', 'SoundCloud')
+                            }
+            except Exception:
+                pass
 
-        # 3. Try YouTube extraction with yt-dlp
-        try:
-            with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
-                search_query = clean_query if clean_query.startswith('http') else f"ytsearch:{clean_query}"
-                info = ydl.extract_info(search_query, download=False)
-                if 'entries' in info and info['entries']:
-                    info = info['entries'][0]
-                if info and info.get('url'):
-                    return {
-                        'title': info.get('title') or (yt_meta.get('title') if yt_meta else clean_query),
-                        'url': info.get('url'),
-                        'webpage_url': info.get('webpage_url', clean_query),
-                        'duration': info.get('duration', 0),
-                        'thumbnail': info.get('thumbnail') or (yt_meta.get('thumbnail') if yt_meta else None),
-                        'uploader': info.get('uploader') or (yt_meta.get('author') if yt_meta else 'YouTube')
-                    }
-        except Exception as yt_err:
-            logger.info(f"YouTube extraction failed ({yt_err}), activating SoundCloud fallback...")
+            # Try YouTube
+            try:
+                with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+                    yt_info = ydl.extract_info(f"ytsearch:{cand}", download=False)
+                    if 'entries' in yt_info and yt_info['entries']:
+                        entry = yt_info['entries'][0]
+                        if entry and entry.get('url'):
+                            return {
+                                'title': (yt_meta.get('title') if yt_meta else None) or entry.get('title', clean_query),
+                                'url': entry.get('url'),
+                                'webpage_url': clean_query if is_yt else entry.get('webpage_url', clean_query),
+                                'duration': entry.get('duration', 0),
+                                'thumbnail': (yt_meta.get('thumbnail') if yt_meta else None) or entry.get('thumbnail'),
+                                'uploader': (yt_meta.get('author') if yt_meta else None) or entry.get('uploader', 'YouTube')
+                            }
+            except Exception:
+                pass
 
-        # 4. Fallback to SoundCloud if YouTube failed
-        search_target = yt_meta['title'] if yt_meta else clean_query
-        try:
-            with yt_dlp.YoutubeDL(SC_OPTIONS) as ydl:
-                sc_info = ydl.extract_info(f"scsearch:{search_target}", download=False)
-                if 'entries' in sc_info and sc_info['entries']:
-                    entry = sc_info['entries'][0]
-                    return {
-                        'title': (yt_meta.get('title') if yt_meta else None) or entry.get('title', search_target),
-                        'url': entry.get('url'),
-                        'webpage_url': clean_query if is_yt else entry.get('webpage_url', clean_query),
-                        'duration': entry.get('duration', 0),
-                        'thumbnail': (yt_meta.get('thumbnail') if yt_meta else None) or entry.get('thumbnail'),
-                        'uploader': (yt_meta.get('author') if yt_meta else None) or entry.get('uploader', 'SoundCloud')
-                    }
-        except Exception as sc_err:
-            logger.error(f"SoundCloud fallback also failed for '{search_target}': {sc_err}")
-
+        return None
+    except Exception as e:
+        logger.error(f"Fatal error extracting audio for '{query}': {e}")
         return None
     except Exception as e:
         logger.error(f"Fatal error extracting audio for '{query}': {e}")
