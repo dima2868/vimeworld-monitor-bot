@@ -270,12 +270,35 @@ def clean_music_query(query: str) -> str:
     return q
 
 
+def is_youtube_playlist_url(url: str) -> bool:
+    """Checks if URL is a YouTube or YouTube Music playlist."""
+    if 'youtube.com' not in url and 'youtu.be' not in url:
+        return False
+    parsed = urllib.parse.urlparse(url)
+    qs = urllib.parse.parse_qs(parsed.query)
+
+    # 1. Pure playlist / browse endpoints
+    if '/playlist' in parsed.path or '/browse/VL' in parsed.path:
+        return True
+
+    # 2. list= parameter
+    if 'list' in qs:
+        # If no video ID (v=), it's definitely a playlist!
+        if 'v' not in qs:
+            return True
+        # If has both v= and list=, check if list is real playlist (PL, OLAK, CL, etc.) vs pure RD radio
+        list_id = qs['list'][0]
+        if list_id.startswith('PL') or list_id.startswith('OLAK') or list_id.startswith('CL') or list_id.startswith('RDCL'):
+            return True
+    return False
+
+
 def resolve_query_input(query: str = None) -> dict:
     """
     Universal resolver for all inputs:
     - None -> MC POH Discography
     - Spotify Playlist / Album / Track
-    - YouTube Playlist / YouTube Music Playlist
+    - YouTube Playlist / YouTube Music Playlist (all list formats)
     - SoundCloud URLs / Share text
     - YouTube / YouTube Music video URLs
     - MC POH numbers / names
@@ -292,13 +315,13 @@ def resolve_query_input(query: str = None) -> dict:
     q = query.strip()
 
     # 1. Spotify
-    if 'spotify.com' in q:
+    if 'spotify.com' in q or 'spotify.link' in q or 'spoti.fi' in q or q.startswith('spotify:'):
         res = get_spotify_info(q)
         if res:
             return res
 
-    # 2. YouTube / YouTube Music Playlist (list=PL... or /playlist)
-    if ('youtube.com' in q or 'youtu.be' in q) and ('list=' in q or '/playlist' in q) and not ('list=RD' in q):
+    # 2. YouTube / YouTube Music Playlist
+    if is_youtube_playlist_url(q):
         res = get_yt_playlist_info(q)
         if res:
             return res
