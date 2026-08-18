@@ -40,12 +40,12 @@ YTDL_OPTIONS = {
     'default_search': 'ytsearch',
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'web_creator']
+            'player_client': ['android', 'web_creator', 'mweb']
         }
     }
 }
 
-FFMPEG_OPTIONS = {
+FFMPEG_STREAM_OPTIONS = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
     'options': '-vn -af "volume=1.3"'
 }
@@ -56,10 +56,23 @@ FFMPEG_LOCAL_OPTIONS = {
 
 
 def extract_track_info_sync(query: str):
-    """Synchronous helper to extract direct audio URL and metadata from YouTube."""
+    """Synchronous helper to extract direct audio URL and metadata from YouTube / URL."""
     try:
+        # Check if direct audio link
+        direct_extensions = ('.mp3', '.m4a', '.ogg', '.wav', '.aac', '.flac', '.opus')
+        if any(query.lower().startswith(p) for p in ('http://', 'https://')) and any(query.lower().split('?')[0].endswith(ext) for ext in direct_extensions):
+            filename = query.split('/')[-1].split('?')[0]
+            return {
+                'title': filename,
+                'url': query,
+                'webpage_url': query,
+                'duration': 0,
+                'thumbnail': None,
+                'uploader': 'Прямая ссылка'
+            }
+
         with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
-            search_query = query if query.startswith('http') else f"ytsearch:{query}"
+            search_query = query if (query.startswith('http://') or query.startswith('https://')) else f"ytsearch:{query}"
             info = ydl.extract_info(search_query, download=False)
             if 'entries' in info:
                 if not info['entries']:
@@ -68,9 +81,10 @@ def extract_track_info_sync(query: str):
             return {
                 'title': info.get('title', query),
                 'url': info.get('url'),
-                'webpage_url': info.get('webpage_url'),
+                'webpage_url': info.get('webpage_url', query),
                 'duration': info.get('duration', 0),
-                'thumbnail': info.get('thumbnail')
+                'thumbnail': info.get('thumbnail'),
+                'uploader': info.get('uploader', info.get('channel', 'YouTube'))
             }
     except Exception as e:
         logger.error(f"Error extracting audio with yt-dlp for '{query}': {e}")
@@ -135,7 +149,7 @@ class MusicControlView(discord.ui.View):
 
         # Tracklist
         btn_list = discord.ui.Button(
-            label="📜 Треки MC ПОХ",
+            label="📜 Очередь треков",
             style=discord.ButtonStyle.secondary,
             custom_id="music_list"
         )
@@ -157,7 +171,7 @@ class MusicControlView(discord.ui.View):
                 pass
 
     async def on_skip(self, interaction: discord.Interaction):
-        await interaction.response.send_message("⏭️ Пропуск текущего трека...", ephemeral=True)
+        await interaction.response.send_message("⏭️ Переключаю на следующий трек...", ephemeral=True)
         await self.player.skip()
 
     async def on_shuffle(self, interaction: discord.Interaction):
@@ -190,7 +204,7 @@ class MusicControlView(discord.ui.View):
 
 
 class MusicPlayer:
-    """Singleton music player manager for MC ПОХ playlist & audio queue."""
+    """Singleton music player manager for MC ПОХ playlist & YouTube/URL audio streaming."""
     def __init__(self):
         self.queue = []
         self.current_index = 0
@@ -204,6 +218,7 @@ class MusicPlayer:
         self.text_channel = None
         self.lock = asyncio.Lock()
         self.interrupted_for_alert = False
+        self._manual_transition = False
 
     def load_mc_poh_playlist(self, shuffle: bool = False):
         """Loads the full MC ПОХ tracklist into the queue."""
@@ -216,7 +231,7 @@ class MusicPlayer:
     def toggle_shuffle(self):
         self.is_shuffle = not self.is_shuffle
         if self.is_shuffle and len(self.queue) > 1:
-            current_track = self.queue[self.current_index] if self.queue else None
+            current_track = self.queue[self.current_index] if self.queue and self.current_index < len(self.queue) else None
             upcoming = [t for i, t in enumerate(self.queue) if i != self.current_index]
             random.shuffle(upcoming)
             if current_track:
@@ -226,16 +241,33 @@ class MusicPlayer:
                 self.queue = upcoming
 
     def build_now_playing_embed(self) -> discord.Embed:
-        track = self.now_playing or (self.queue[self.current_index] if self.queue else None)
-        title = track.get("title", "MC ПОХ") if track else "Неизвестный трек"
+        track = self.now_playing or (self.queue[self.current_index] if self.queue and self.current_index < len(self.queue) else None)
+        title = track.get("title", "Музыка") if track else "Неизвестный трек"
+        uploader = track.get("uploader") if track else None
+        duration_sec = track.get("duration", 0) if track else 0
+        
+        duration_str = ""
+        if duration_sec and duration_sec > 0:
+            mins = duration_sec // 60
+            secs = duration_sec % 60
+            duration_str = f"⏱ **Длительность:** `{mins}:{secs:02d}`\n"
+
+        uploader_str = f"👤 **Автор:** `{uploader}`\n" if uploader else ""
+        webpage_url = track.get("webpage_url") if track else None
+        link_str = f"🔗 [Ссылка на источник]({webpage_url})\n" if webpage_url and webpage_url.startswith("http") else ""
 
         status_icon = "⏸️ Пауза" if self.is_paused else "▶️ Играет"
         loop_str = "🟢 ВКЛ" if self.is_loop else "🔴 ВЫКЛ"
         shuffle_str = "🟢 ВКЛ" if self.is_shuffle else "🔴 ВЫКЛ"
 
         embed = discord.Embed(
-            title="🔥 Плеер MC ПОХ (Павел Пошутилкин)",
-            description=f"🎵 **Сейчас играет:**\n### 🎤 `{title}`\n",
+            title="🎵 Музыкальный Плеер Discord",
+            description=(
+                f"### 🎤 `{title}`\n\n"
+                f"{uploader_str}"
+                f"{duration_str}"
+                f"{link_str}"
+            ),
             color=0xFF4500
         )
         embed.add_field(name="📊 Статус", value=f"`{status_icon}`", inline=True)
@@ -250,15 +282,15 @@ class MusicPlayer:
             next_track = self.queue[0]["title"]
             embed.add_field(name="⏭️ Следующий трек (по кругу)", value=f"`{next_track}`", inline=False)
 
-        embed.set_footer(text="Управляйте воспроизведением с помощью кнопок ниже или команд /play, /pause, /skip, /stop")
+        embed.set_footer(text="Управляйте воспроизведением кнопками ниже или командами /play, /pause, /skip, /stop")
         if track and track.get("thumbnail"):
             embed.set_thumbnail(url=track["thumbnail"])
         return embed
 
     def build_playlist_embed(self) -> discord.Embed:
         embed = discord.Embed(
-            title="📜 Полный Плейлист MC ПОХ",
-            description="Список всех 20 легендарных треков Павла Пошутилкина в очереди:",
+            title="📜 Текущая Очередь Воспроизведения",
+            description="Список треков в текущей очереди плеера:",
             color=0xF1C40F
         )
         lines = []
@@ -267,7 +299,11 @@ class MusicPlayer:
             end_marker = "** ⬅️ *(играет)*" if idx == self.current_index else ""
             lines.append(f"{marker}{idx + 1}. {item['title']}{end_marker}")
 
-        embed.add_field(name="🎵 Очередь треков", value="\n".join(lines[:25]), inline=False)
+        shown_lines = lines[:25]
+        if len(lines) > 25:
+            shown_lines.append(f"... и ещё {len(lines) - 25} треков")
+
+        embed.add_field(name="🎵 Список треков", value="\n".join(shown_lines) if shown_lines else "Очередь пуста", inline=False)
         embed.set_footer(text=f"Всего треков: {len(self.queue)} | Автоматическое непрерывное воспроизведение")
         return embed
 
@@ -293,32 +329,37 @@ class MusicPlayer:
         local_filename = track_item.get("file")
         local_path = os.path.join("sounds", "mcpoh", local_filename) if local_filename else None
 
-        # Check if local file exists
+        # Check if local file exists (Offline playback for MC POH)
         if local_path and os.path.exists(local_path):
             audio_source = discord.FFmpegPCMAudio(local_path, options=FFMPEG_LOCAL_OPTIONS['options'])
             self.now_playing = {
                 "title": track_item.get("title", local_filename),
-                "thumbnail": None
+                "thumbnail": None,
+                "duration": 0,
+                "uploader": "MC ПОХ (Локальный файл)"
             }
         else:
-            # Fallback to online stream via yt-dlp
+            # Online stream via URL / YouTube Search
             query = track_item.get("query", track_item.get("title"))
             track_info = await asyncio.to_thread(extract_track_info_sync, query)
             if not track_info or not track_info.get("url"):
-                logger.warning(f"Could not load track '{query}', skipping to next...")
+                logger.warning(f"Could not load audio for '{query}', skipping to next...")
                 self.current_index += 1
                 await self._play_current_track()
                 return
 
             self.now_playing = {
-                "title": track_item.get("title", track_info["title"]),
+                "title": track_info.get("title", track_item.get("title", query)),
                 "url": track_info["url"],
-                "thumbnail": track_info.get("thumbnail")
+                "webpage_url": track_info.get("webpage_url"),
+                "duration": track_info.get("duration", 0),
+                "thumbnail": track_info.get("thumbnail"),
+                "uploader": track_info.get("uploader", "Онлайн")
             }
             audio_source = discord.FFmpegPCMAudio(
                 track_info["url"],
-                before_options=FFMPEG_OPTIONS['before_options'],
-                options=FFMPEG_OPTIONS['options']
+                before_options=FFMPEG_STREAM_OPTIONS['before_options'],
+                options=FFMPEG_STREAM_OPTIONS['options']
             )
 
         if not self.voice_client or not self.voice_client.is_connected():
@@ -326,22 +367,27 @@ class MusicPlayer:
             self.is_playing = False
             return
 
-        if self.voice_client.is_playing():
+        # Safely stop existing audio without triggering recursive after callback
+        if self.voice_client.is_playing() or self.voice_client.is_paused():
+            self._manual_transition = True
             self.voice_client.stop()
+            await asyncio.sleep(0.05)
+            self._manual_transition = False
 
         try:
             def after_playback(error):
                 if error:
                     logger.error(f"Error during audio playback: {error}")
-                if self.interrupted_for_alert:
+                if self._manual_transition or self.interrupted_for_alert:
                     return
-                # Schedule next track in asyncio event loop
-                asyncio.run_coroutine_threadsafe(self._on_track_finished(), self.voice_client.loop)
+                # Schedule next track in asyncio event loop only when track finishes naturally
+                if self.voice_client and self.voice_client.loop:
+                    asyncio.run_coroutine_threadsafe(self._on_track_finished(), self.voice_client.loop)
 
             self.voice_client.play(audio_source, after=after_playback)
             self.is_playing = True
             self.is_paused = False
-            logger.info(f"Now playing MC POH track: {self.now_playing['title']}")
+            logger.info(f"Now playing music track: {self.now_playing['title']}")
 
             # Send or update Embed in channel
             if self.text_channel:
@@ -360,7 +406,7 @@ class MusicPlayer:
             await self._play_current_track()
 
     async def _on_track_finished(self):
-        if not self.is_playing:
+        if not self.is_playing or self._manual_transition:
             return
         self.current_index += 1
         if self.current_index >= len(self.queue):
@@ -384,21 +430,28 @@ class MusicPlayer:
             self.is_paused = False
 
     async def skip(self):
-        if self.voice_client:
+        if not self.voice_client or not self.is_playing:
+            return
+        self._manual_transition = True
+        if self.voice_client.is_playing() or self.voice_client.is_paused():
             self.voice_client.stop()
-            self.current_index += 1
-            if self.current_index >= len(self.queue):
-                if self.is_loop:
-                    self.current_index = 0
-                else:
-                    await self.stop()
-                    return
-            await self._play_current_track()
+        await asyncio.sleep(0.05)
+        self._manual_transition = False
+
+        self.current_index += 1
+        if self.current_index >= len(self.queue):
+            if self.is_loop:
+                self.current_index = 0
+            else:
+                await self.stop()
+                return
+        await self._play_current_track()
 
     async def stop(self):
         self.is_playing = False
         self.is_paused = False
         self.now_playing = None
+        self._manual_transition = True
         if self.voice_client and self.voice_client.is_connected():
             if self.voice_client.is_playing() or self.voice_client.is_paused():
                 self.voice_client.stop()
@@ -407,12 +460,13 @@ class MusicPlayer:
             except Exception:
                 pass
             self.voice_client = None
+        self._manual_transition = False
 
         if self.message:
             try:
                 embed = discord.Embed(
-                    title="⏹️ Воспроизведение MC ПОХ остановлено",
-                    description="Бот отключился от голосового канала. Включить снова: `/play`",
+                    title="⏹️ Воспроизведение остановлено",
+                    description="Бот отключился от голосового канала. Включить музыку: `/play`",
                     color=0x95A5A6
                 )
                 await self.message.edit(embed=embed, view=None)
