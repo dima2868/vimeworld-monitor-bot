@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Discord Music Bot Token
-# You can set a dedicated bot token for the music bot, or reuse the same token
+# Loaded from environment variable DISCORD_MUSIC_BOT_TOKEN (or Railway Variables / .env)
 DISCORD_MUSIC_BOT_TOKEN = os.getenv("DISCORD_MUSIC_BOT_TOKEN") or os.getenv("DISCORD_BOT_TOKEN", "")
 
 # Excluded Voice Channel IDs (AFK channels, private rooms, etc.)
