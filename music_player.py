@@ -200,7 +200,15 @@ def get_spotify_info(url: str):
 
 
 def get_yt_playlist_info(url: str):
-    """Extracts tracklist from YouTube / YouTube Music playlists."""
+    """Extracts tracklist from YouTube / YouTube Music playlists (including watch?v=...&list=PL...)."""
+    # Normalize URL to pure playlist URL if list= parameter is present
+    if 'list=' in url:
+        parsed = urllib.parse.urlparse(url)
+        qs = urllib.parse.parse_qs(parsed.query)
+        if 'list' in qs:
+            list_id = qs['list'][0]
+            url = f"https://www.youtube.com/playlist?list={list_id}"
+
     ydl_opts = {
         'extract_flat': True,
         'quiet': True,
@@ -221,7 +229,11 @@ def get_yt_playlist_info(url: str):
                     if not entry:
                         continue
                     t_title = entry.get('title')
-                    t_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                    if not t_title or '[Private video]' in t_title or '[Deleted video]' in t_title:
+                        continue
+                    t_url = entry.get('url') or (f"https://www.youtube.com/watch?v={entry.get('id')}" if entry.get('id') else None)
+                    if not t_url:
+                        continue
                     tracks.append({
                         'title': t_title,
                         'query': t_url,
