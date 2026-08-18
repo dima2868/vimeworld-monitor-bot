@@ -894,7 +894,7 @@ def generate_admin_embed(settings: dict) -> discord.Embed:
     embed.add_field(name="🌋 Остров Чеджу (17:00)", value="🟢 Включено" if settings.get("sound_dungeon_jeju", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🏛 Тёмный Аукцион (Сб 19:00)", value="🟢 Включено" if settings.get("sound_dark_auction", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🏰 Клановый рейд (голос)", value="🟢 Включено" if settings.get("sound_clan_raid", 1) else "🔴 Выключено", inline=True)
-    embed.add_field(name="🔄 Режим рестарта клана", value="🟢 Сброс в 03:00 (04:25...)" if settings.get("clan_restart_mode", 1) else "🔴 Непрерывный (+1:25)", inline=True)
+    embed.add_field(name="🔄 Режим рестарта клана", value="🟢 Сброс в 03:00 (04:15...)" if settings.get("clan_restart_mode", 1) else "🔴 Непрерывный (+1:15)", inline=True)
     embed.add_field(name="🎬 Лололошка", value="🟢 Включено" if settings.get("sound_MrLalalashkaXXL", 1) else "🔴 Выключено", inline=True)
     embed.add_field(name="🎮 Фиксплей", value="🟢 Включено" if settings.get("sound_F1xPlay_", 1) else "🔴 Выключено", inline=True)
     embed.set_footer(text="Нажимайте на кнопки ниже для переключения статуса")
@@ -968,7 +968,7 @@ if tree:
         embed = build_compare_embed(p1, p2)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @tree.command(name="clan", description="Расписание клановых рейдов Solo Leveling (интервал 1ч 25м)")
+    @tree.command(name="clan", description="Расписание клановых рейдов Solo Leveling (интервал 1ч 15м)")
     async def slash_clan(interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         restart_mode = bool(await db.get_discord_setting("clan_restart_mode", 1))
@@ -977,7 +977,7 @@ if tree:
         
         today_raids = dungeon_utils.get_clan_raids_for_date(now.date(), restart_mode=restart_mode)
         
-        mode_text = "🔄 **Сброс в 03:00** (ежедневно: 04:25, 05:50, 07:15...)" if restart_mode else "⏳ **Непрерывный таймер** (+1:25 сквозь рестарт)"
+        mode_text = "🔄 **Сброс в 03:00** (ежедневно: 04:15, 05:30, 06:45...)" if restart_mode else "⏳ **Непрерывный таймер** (+1:15 сквозь рестарт)"
         
         embed = discord.Embed(
             title="🏰 Расписание Клановых Рейдов Solo Leveling",
@@ -1005,7 +1005,7 @@ if tree:
             value="\n".join(schedule_lines) if schedule_lines else "Нет рейдов",
             inline=False
         )
-        embed.set_footer(text="Интервал: 1ч 25м (85 мин) | Переключение режима доступно в /admin")
+        embed.set_footer(text="Интервал: 1ч 15м (75 мин) | Переключение режима доступно в /admin")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @tree.command(name="play", description="Включить плейлист MC ПОХ (Павел Пошутилкин) или найти трек")

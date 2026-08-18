@@ -69,7 +69,7 @@ DUNGEONS = {
 }
 
 # Clan Raid configuration (Solo Leveling)
-CLAN_RAID_INTERVAL_MINUTES = 85  # 1 hour 25 minutes (reduced by another 10m via clan upgrade)
+CLAN_RAID_INTERVAL_MINUTES = 75  # 1 hour 15 minutes (reduced by another 10m via clan upgrade)
 CLAN_RAID_ALERT_MINUTES_BEFORE = 5
 CLAN_RAID_RESTART_HOUR = 3  # Daily restart at 03:00 MSK
 
